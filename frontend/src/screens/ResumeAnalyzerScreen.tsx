@@ -23,7 +23,7 @@ export const ResumeAnalyzerScreen: React.FC<ResumeAnalyzerScreenProps> = ({
   onPracticeQuestion,
   onOpenUpgrade,
 }) => {
-  const { resume, isAnalyzing, analyzeResumeText } = useResumeStore();
+  const { resume, isAnalyzing, analyzeResumeText, uploadResumeFile, error } = useResumeStore();
   const { user } = useAuthStore();
   const { startInterview } = useInterviewStore();
 
@@ -34,6 +34,20 @@ export const ResumeAnalyzerScreen: React.FC<ResumeAnalyzerScreenProps> = ({
     if (!inputResume.trim()) return;
     const role = user?.profile?.target_role || 'Full Stack Developer';
     await analyzeResumeText(inputResume, role);
+  };
+
+  const handlePickResumeFile = () => {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.txt,application/pdf,text/plain';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const role = user?.profile?.target_role || 'Full Stack Developer';
+      await uploadResumeFile(file, role);
+    };
+    input.click();
   };
 
   const handlePracticeFromResume = async (qText: string) => {
@@ -63,7 +77,7 @@ export const ResumeAnalyzerScreen: React.FC<ResumeAnalyzerScreenProps> = ({
         <View>
           <Text style={styles.title}>ATS Resume Intelligence</Text>
           <Text style={styles.subtitle}>
-            Upload or paste your resume to get instant ATS scoring & tailored interview questions.
+            Send a PDF/TXT resume or paste text. Gemini scores ATS fit and writes interview questions from your experience.
           </Text>
         </View>
       </View>
@@ -81,6 +95,15 @@ export const ResumeAnalyzerScreen: React.FC<ResumeAnalyzerScreenProps> = ({
           value={inputResume}
           onChangeText={setInputResume}
         />
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.sampleFillBtn} onPress={handlePickResumeFile}>
+            <Ionicons name="cloud-upload-outline" size={13} color={colors.accent} />
+            <Text style={styles.sampleFillText}>Send resume file (PDF / TXT)</Text>
+          </TouchableOpacity>
+        </View>
+
+        {error ? <Text style={styles.uploadError}>{error}</Text> : null}
 
         <View style={styles.actionRow}>
           <TouchableOpacity
@@ -128,6 +151,7 @@ export const ResumeAnalyzerScreen: React.FC<ResumeAnalyzerScreenProps> = ({
               </Text>
               <Text style={styles.atsSub}>
                 Detected Role: <Text style={{ color: colors.accent, fontWeight: '700' }}>{resume.detected_role || 'Software Engineer'}</Text>
+                {' • '}Gemini ATS evaluation
               </Text>
             </View>
           </View>
@@ -282,6 +306,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  uploadError: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   resultsContainer: {
     gap: 16,

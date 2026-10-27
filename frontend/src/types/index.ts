@@ -147,6 +147,7 @@ export interface QuestionBankItem {
   difficulty: string;
   source: string;
   is_bookmarked?: boolean;
+  is_locked?: boolean;
 }
 
 export interface SubscriptionPlan {

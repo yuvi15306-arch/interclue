@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { useInterviewStore } from '../store/useInterviewStore';
 import { AudioVisualizer } from '../components/AudioVisualizer';
+import { speakText, stopSpeaking } from '../services/speech';
 
 interface InterviewRoomScreenProps {
   onEvaluationReady: () => void;
@@ -30,6 +31,7 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
     currentQuestion,
     submitAnswer,
     transcribeAudio,
+    refreshQuestion,
     isEvaluating,
     isVoiceMode,
     toggleVoiceMode,
@@ -46,6 +48,8 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
   const [interimTranscript, setInterimTranscript] = useState('');
   const [transcriptionBadge, setTranscriptionBadge] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isRefreshingQuestion, setIsRefreshingQuestion] = useState(false);
 
   // Audio & Speech Recognition Refs
   const recognitionRef = useRef<any>(null);
@@ -66,6 +70,7 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
   useEffect(() => {
     return () => {
       stopAllAudio();
+      stopSpeaking();
     };
   }, []);
 
@@ -260,6 +265,32 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
     }
   };
 
+  const handleListenQuestion = () => {
+    const text = currentQuestion?.question_text;
+    if (!text) return;
+    if (isSpeaking) {
+      stopSpeaking();
+      setIsSpeaking(false);
+      return;
+    }
+    const started = speakText(text);
+    setIsSpeaking(started);
+    if (started && typeof window !== 'undefined') {
+      const done = () => setIsSpeaking(false);
+      window.speechSynthesis.onvoiceschanged = window.speechSynthesis.onvoiceschanged;
+      setTimeout(done, Math.min(60000, Math.max(4000, text.split(' ').length * 420)));
+    }
+  };
+
+  const handleRefreshQuestion = async () => {
+    setIsRefreshingQuestion(true);
+    stopSpeaking();
+    setIsSpeaking(false);
+    await refreshQuestion();
+    setIsRefreshingQuestion(false);
+    setSecondsRemaining(120);
+  };
+
   const handleSubmit = async () => {
     if (!answerText.trim()) return;
     if (isRecording) {
@@ -285,8 +316,8 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
       {/* Top Session Bar */}
       <View style={styles.sessionHeader}>
         <TouchableOpacity style={styles.exitBtn} onPress={onExit}>
-          <Ionicons name="close" size={18} color={colors.textSecondary} />
-          <Text style={styles.exitText}>End Session</Text>
+          <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
+          <Text style={styles.exitText}>Back</Text>
         </TouchableOpacity>
 
         <View style={styles.timerBadge}>
@@ -325,6 +356,25 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
         <Text style={styles.questionPrompt}>
           "{currentQuestion?.question_text || 'Explain how you approach architecting scalable solutions for high concurrency.'}"
         </Text>
+
+        <View style={styles.questionActions}>
+          <TouchableOpacity style={styles.listenBtn} onPress={handleListenQuestion}>
+            <Ionicons name={isSpeaking ? 'stop-circle' : 'volume-high'} size={16} color="#FFFFFF" />
+            <Text style={styles.listenBtnText}>{isSpeaking ? 'Stop Listening' : 'Listen to Question'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.refreshQBtn}
+            onPress={handleRefreshQuestion}
+            disabled={isRefreshingQuestion || isEvaluating}
+          >
+            {isRefreshingQuestion ? (
+              <ActivityIndicator color={colors.accent} size="small" />
+            ) : (
+              <Ionicons name="refresh" size={16} color={colors.accent} />
+            )}
+            <Text style={styles.refreshQText}>New question</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Speech-to-Text Voice Studio */}
@@ -609,6 +659,42 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 24,
     fontStyle: 'italic',
+  },
+  questionActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  listenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  listenBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  refreshQBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  refreshQText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
   },
   voiceSection: {
     backgroundColor: colors.surface,

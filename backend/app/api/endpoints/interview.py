@@ -17,7 +17,7 @@ from app.schemas.interview import (
     EvaluationResponse,
     TranscriptionResponse
 )
-from app.services.gemini_service import gemini_service
+from app.services.gemini_service import gemini_service, resolve_question_category
 from app.services.stt_service import stt_service
 
 router = APIRouter()
@@ -86,11 +86,11 @@ def start_interview(
     db.add(interview)
     db.flush()
 
-    # Generate first question
+    first_category = resolve_question_category(req.interview_type, index=0)
     first_q_data = gemini_service.generate_question(
         role=req.role,
         difficulty=req.difficulty,
-        category="Technical" if req.interview_type in ["Technical", "Mixed"] else req.interview_type,
+        category=first_category,
         interview_type=req.interview_type,
         previous_questions=[]
     )
@@ -126,10 +126,11 @@ def generate_next_question(
     prev_texts = [q.question_text for q in existing_questions]
     order = len(existing_questions) + 1
 
+    locked_category = resolve_question_category(interview.interview_type, index=order - 1, requested=category)
     q_data = gemini_service.generate_question(
         role=interview.role,
         difficulty=interview.difficulty,
-        category=category,
+        category=locked_category,
         interview_type=interview.interview_type,
         previous_questions=prev_texts
     )
@@ -138,7 +139,7 @@ def generate_next_question(
         interview_id=interview.id,
         question_order=order,
         question_text=q_data["question_text"],
-        category=q_data.get("category", category),
+        category=q_data.get("category", locked_category),
         role=interview.role,
         difficulty=interview.difficulty,
         expected_key_points=q_data.get("expected_key_points", [])
@@ -243,9 +244,7 @@ def evaluate_candidate_answer(
                 current_user.profile.longest_streak = current_user.profile.current_streak
             current_user.profile.last_interview_at = datetime.now(timezone.utc)
     else:
-        # Generate the next question seamlessly
-        categories = ["Technical", "Behavioral", "Situational", "HR", "Aptitude"]
-        cat = categories[interview.current_question_index % len(categories)]
+        cat = resolve_question_category(interview.interview_type, index=interview.current_question_index)
         all_q = db.query(Question).filter(Question.interview_id == interview.id).all()
         q_texts = [q.question_text for q in all_q]
 
@@ -285,6 +284,51 @@ def evaluate_candidate_answer(
         "next_question": next_question,
         "is_completed": is_completed
     }
+
+
+@router.post("/refresh-question", response_model=QuestionResponse)
+def refresh_current_question(
+    interview_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Replace the current unanswered question with a new Gemini question of the same interview type."""
+    interview = db.query(Interview).filter(Interview.id == interview_id, Interview.user_id == current_user.id).first()
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+    if interview.status != "in_progress":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Interview is not in progress")
+
+    current_q = (
+        db.query(Question)
+        .filter(Question.interview_id == interview.id)
+        .order_by(Question.question_order.desc())
+        .first()
+    )
+    if not current_q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No question to refresh")
+
+    existing_resp = db.query(Response).filter(Response.question_id == current_q.id).first()
+    if existing_resp:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current question already answered")
+
+    all_q = db.query(Question).filter(Question.interview_id == interview.id).all()
+    q_texts = [q.question_text for q in all_q]
+    cat = resolve_question_category(interview.interview_type, index=interview.current_question_index)
+
+    q_data = gemini_service.generate_question(
+        role=interview.role,
+        difficulty=interview.difficulty,
+        category=cat,
+        interview_type=interview.interview_type,
+        previous_questions=q_texts
+    )
+    current_q.question_text = q_data["question_text"]
+    current_q.category = q_data.get("category", cat)
+    current_q.expected_key_points = q_data.get("expected_key_points", [])
+    db.commit()
+    db.refresh(current_q)
+    return current_q
 
 
 @router.get("/history", response_model=List[InterviewSummaryItem])

@@ -43,6 +43,11 @@ export const EvaluationReportScreen: React.FC<EvaluationReportScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <TouchableOpacity style={styles.backRow} onPress={onFinish}>
+        <Ionicons name="arrow-back" size={16} color={colors.textSecondary} />
+        <Text style={styles.backText}>Back to dashboard</Text>
+      </TouchableOpacity>
+
       {/* Top Banner */}
       <View style={styles.heroCard}>
         <View style={styles.aiTag}>
@@ -169,6 +174,17 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  backText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   heroCard: {
     backgroundColor: colors.surface,

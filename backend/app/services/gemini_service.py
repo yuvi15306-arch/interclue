@@ -3,6 +3,26 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from app.core.config import settings
+from app.data.question_bank_data import list_category_questions
+
+INTERVIEW_TYPE_CATEGORIES = {
+    "Technical": ["Technical"],
+    "Behavioral": ["Behavioral"],
+    "HR": ["HR"],
+    "Situational": ["Situational"],
+    "Aptitude": ["Aptitude"],
+    "Mixed": ["Technical", "Behavioral", "Situational", "HR", "Aptitude"],
+}
+
+
+def resolve_question_category(interview_type: str, index: int = 0, requested: Optional[str] = None) -> str:
+    itype = (interview_type or "Mixed").strip()
+    if itype != "Mixed":
+        return INTERVIEW_TYPE_CATEGORIES.get(itype, [itype])[0]
+    if requested and requested in INTERVIEW_TYPE_CATEGORIES and requested != "Mixed":
+        return requested
+    mix = INTERVIEW_TYPE_CATEGORIES["Mixed"]
+    return mix[index % len(mix)]
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +114,29 @@ class GeminiService:
         else:
             logger.info("GEMINI_API_KEY not configured. Using intelligent mock evaluation engine.")
 
+    def _parse_json_response(self, text: str) -> Dict[str, Any]:
+        clean_text = text.strip()
+        clean_text = re.sub(r"^```json\s*", "", clean_text)
+        clean_text = re.sub(r"\s*```$", "", clean_text)
+        return json.loads(clean_text)
+
+    def _generate_json(self, prompt: str, temperature: float = 0.5) -> Optional[Dict[str, Any]]:
+        if not self.client_available:
+            return None
+        try:
+            model = self.genai.GenerativeModel(settings.GEMINI_MODEL)
+            response = model.generate_content(
+                prompt,
+                generation_config={"response_mime_type": "application/json", "temperature": temperature},
+            )
+            text = (response.text or "").strip()
+            if not text:
+                return None
+            return self._parse_json_response(text)
+        except Exception as e:
+            logger.error(f"Gemini JSON generation failed: {e}")
+            return None
+
     def generate_question(
         self,
         role: str,
@@ -103,52 +146,114 @@ class GeminiService:
         previous_questions: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Generate a realistic interview question for the selected role and difficulty level.
+        Generate a realistic interview question for the selected role, difficulty, and interview type.
         """
+        locked_category = resolve_question_category(interview_type, requested=category)
+        prev = previous_questions or []
+        avoid = "\n".join(f"- {q}" for q in prev[-8:]) if prev else "None yet."
+
+        style_guide = {
+            "Technical": "Ask a deep technical, architectural, or implementation question specific to the role. No behavioral icebreakers.",
+            "Behavioral": "Ask a STAR-style behavioral question about past actions, conflict, ownership, or growth. Do not ask trivia.",
+            "HR": "Ask a professional HR / culture-fit question (motivation, career goals, communication, values).",
+            "Situational": "Ask a hypothetical on-the-job scenario the candidate must walk through in real time.",
+            "Aptitude": "Ask a quantitative reasoning, estimation, complexity, or systems-math question relevant to the role.",
+        }.get(locked_category, "Ask a realistic interview question matching the interview style.")
+
         prompt = f"""You are an expert interviewer hiring for the position of '{role}'.
 Selected Difficulty: {difficulty}
-Category: {category}
-Interview Style: {interview_type}
+Interview Type chosen by the candidate: {interview_type}
+Question category you MUST use: {locked_category}
+
+Style rules:
+{style_guide}
+
+Do NOT repeat any of these previous questions:
+{avoid}
 
 Task:
-Generate a realistic, insightful, and role-appropriate interview question for the candidate.
-Ensure the question tests both conceptual mastery and practical problem-solving.
+Generate ONE original, realistic, {difficulty}-level {locked_category} interview question tailored to {role}.
+The question must clearly belong to {locked_category}, not a different interview type.
 
 Output MUST be valid JSON in this exact structure:
 {{
     "question_text": "The interview question here",
-    "category": "{category}",
+    "category": "{locked_category}",
     "expected_key_points": ["Key point 1 candidate should mention", "Key point 2", "Key point 3"]
 }}
 """
-        if self.client_available:
-            try:
-                model = self.genai.GenerativeModel(settings.GEMINI_MODEL)
-                response = model.generate_content(
-                    prompt,
-                    generation_config={"response_mime_type": "application/json", "temperature": 0.7}
-                )
-                text = response.text.strip()
-                parsed = json.loads(text)
-                return parsed
-            except Exception as e:
-                logger.error(f"Gemini generate_question API call failed: {e}")
+        parsed = self._generate_json(prompt, temperature=0.7)
+        if parsed and parsed.get("question_text"):
+            parsed["category"] = locked_category
+            parsed.setdefault("expected_key_points", [
+                f"Role-relevant reasoning for {role}",
+                f"Clear {locked_category.lower()} structure",
+                "Concrete examples or trade-offs",
+            ])
+            return parsed
 
-        # Fallback intelligent generation
-        role_questions = FALLBACK_QUESTIONS.get(role, FALLBACK_QUESTIONS["Full Stack Developer"])
+        return self._fallback_question(role, locked_category, prev)
+
+    def _fallback_question(self, role: str, category: str, previous_questions: List[str]) -> Dict[str, Any]:
         prev_set = set(previous_questions or [])
-        available = [q for q in role_questions if q not in prev_set]
-        chosen = available[0] if available else role_questions[0]
-
+        bank = list_category_questions(category, role)
+        if category == "Technical":
+            bank = FALLBACK_QUESTIONS.get(role, []) + bank
+        available = [q for q in bank if q not in prev_set]
+        chosen = available[0] if available else (bank[0] if bank else f"Tell me how you approach {category.lower()} work as a {role}.")
         return {
             "question_text": chosen,
             "category": category,
             "expected_key_points": [
                 f"Core fundamentals related to {role}",
-                "Structured reasoning with real-world examples",
-                "Awareness of trade-offs, edge cases, and best practices"
-            ]
+                f"Structured {category.lower()} reasoning with real-world examples",
+                "Awareness of trade-offs, edge cases, and best practices",
+            ],
         }
+
+    def analyze_resume(self, resume_text: str, role_hint: str = "Software Engineer") -> Optional[Dict[str, Any]]:
+        excerpt = (resume_text or "")[:12000]
+        prompt = f"""You are an ATS (Applicant Tracking System) and senior recruiter evaluating a resume for '{role_hint}'.
+
+Resume:
+\"\"\"{excerpt}\"\"\"
+
+Score the resume for ATS keyword match, structure, quantified impact, skills density, and role fit.
+
+Return ONLY JSON:
+{{
+  "ats_score": 82.5,
+  "detected_role": "{role_hint}",
+  "parsed_skills": ["Python", "React"],
+  "strengths": ["strength 1", "strength 2"],
+  "weaknesses": ["weakness 1"],
+  "suggestions": ["actionable suggestion 1", "actionable suggestion 2"],
+  "generated_questions": [
+    "Resume-specific interview question 1",
+    "Resume-specific interview question 2",
+    "Resume-specific interview question 3",
+    "Resume-specific interview question 4",
+    "Resume-specific interview question 5"
+  ]
+}}
+ats_score must be a number from 0 to 100.
+generated_questions must be specific to claims in this resume, not generic.
+"""
+        parsed = self._generate_json(prompt, temperature=0.3)
+        if not parsed:
+            return None
+        try:
+            parsed["ats_score"] = float(parsed.get("ats_score", 70))
+        except (TypeError, ValueError):
+            parsed["ats_score"] = 70.0
+        parsed["ats_score"] = round(min(98.0, max(20.0, parsed["ats_score"])), 1)
+        parsed.setdefault("parsed_skills", [])
+        parsed.setdefault("strengths", [])
+        parsed.setdefault("weaknesses", [])
+        parsed.setdefault("suggestions", [])
+        parsed.setdefault("generated_questions", [])
+        parsed.setdefault("detected_role", role_hint)
+        return parsed
 
     def evaluate_response(
         self,

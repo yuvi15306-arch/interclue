@@ -9,6 +9,23 @@ import {
 } from '../types';
 import { apiClient } from '../services/api';
 
+const fallbackQuestionForType = (interviewType: QuestionCategory, role: RoleType) => {
+  switch (interviewType) {
+    case 'Behavioral':
+      return `Tell me about a time you had to influence a difficult ${role} decision without formal authority.`;
+    case 'HR':
+      return `Why this ${role} path, and what would success look like for you in the first 90 days?`;
+    case 'Situational':
+      return `Production is degraded and a stakeholder wants a risky hotfix now. Walk through how you would handle it as a ${role}.`;
+    case 'Aptitude':
+      return `A ${role} service handles 2,000 RPS at 80ms p50 and 1.5s p99. What does that tell you, and what would you measure next?`;
+    case 'Technical':
+      return `Explain how you would architect a reliable, observable system for a ${role} product, including failure modes.`;
+    default:
+      return `Give a structured answer to a mixed ${role} interview prompt: architecture, a past example, and a live scenario.`;
+  }
+};
+
 interface InterviewState {
   activeSession: InterviewSession | null;
   currentQuestion: Question | null;
@@ -33,6 +50,7 @@ interface InterviewState {
     provider?: string
   ) => Promise<{ text: string; confidence: number; provider: string } | null>;
   toggleVoiceMode: () => void;
+  refreshQuestion: () => Promise<boolean>;
   resetInterview: () => void;
 }
 
@@ -85,7 +103,7 @@ export const useInterviewStore = create<InterviewState>((set, get) => ({
             id: 1,
             interview_id: 1,
             question_order: 1,
-            question_text: `Explain how you approach architecting scalable solutions for a ${role} position, and describe a complex edge case you resolved.`,
+            question_text: fallbackQuestionForType(interview_type, role),
             category: interview_type === 'Mixed' ? 'Technical' : interview_type,
             role,
             difficulty,
@@ -172,8 +190,8 @@ export const useInterviewStore = create<InterviewState>((set, get) => ({
             id: nextOrder,
             interview_id: activeSession.id,
             question_order: nextOrder,
-            question_text: `Tell me about a time you had to deliver a critical feature under severe constraints for ${activeSession.role}.`,
-            category: 'Behavioral',
+            question_text: fallbackQuestionForType(activeSession.interview_type, activeSession.role),
+            category: activeSession.interview_type === 'Mixed' ? 'Behavioral' : activeSession.interview_type,
             role: activeSession.role,
             difficulty: activeSession.difficulty,
           };
@@ -214,6 +232,28 @@ export const useInterviewStore = create<InterviewState>((set, get) => ({
 
   toggleVoiceMode: () => {
     set((state) => ({ isVoiceMode: !state.isVoiceMode }));
+  },
+
+  refreshQuestion: async () => {
+    const { activeSession, currentQuestion } = get();
+    if (!activeSession || !currentQuestion) return false;
+    try {
+      const res = await apiClient.post('/interview/refresh-question', null, {
+        params: { interview_id: activeSession.id },
+      });
+      set({ currentQuestion: res.data });
+      return true;
+    } catch {
+      const nextText = fallbackQuestionForType(activeSession.interview_type, activeSession.role);
+      set({
+        currentQuestion: {
+          ...currentQuestion,
+          question_text: nextText,
+          category: activeSession.interview_type === 'Mixed' ? currentQuestion.category : activeSession.interview_type,
+        },
+      });
+      return true;
+    }
   },
 
   resetInterview: () => {

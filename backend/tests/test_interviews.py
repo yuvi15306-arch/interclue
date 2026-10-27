@@ -19,6 +19,12 @@ def test_interview_lifecycle(client, auth_headers):
     interview_id = interview_data["id"]
     first_question = interview_data["questions"][0]
     question_id = first_question["id"]
+    assert first_question["category"] == "Technical"
+
+    refresh_res = client.post(f"/interview/refresh-question?interview_id={interview_id}", headers=auth_headers)
+    assert refresh_res.status_code == 200
+    assert refresh_res.json()["category"] == "Technical"
+    assert refresh_res.json()["id"] == question_id
 
     # 2. Submit Answer and evaluate
     eval_payload = {

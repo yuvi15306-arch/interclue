@@ -73,6 +73,24 @@ export const AppNavigator: React.FC = () => {
       <Header
         onOpenProfile={() => setRoleModalVisible(true)}
         onOpenUpgrade={() => setPaywallVisible(true)}
+        onBack={() => {
+          if (activeSubScreen !== 'none') {
+            handleExitInterview();
+            return;
+          }
+          if (activeTab !== 'dashboard') {
+            setActiveTab('dashboard');
+          }
+        }}
+        onRefresh={() => {
+          if (activeSubScreen === 'interview_room') {
+            useInterviewStore.getState().refreshQuestion();
+            return;
+          }
+          if (typeof window !== 'undefined' && window.location) {
+            window.location.reload();
+          }
+        }}
       />
 
       {/* Screen Body */}
@@ -162,7 +180,13 @@ export const AppNavigator: React.FC = () => {
           {/* Central Mock Interview CTA Tab */}
           <TouchableOpacity
             style={styles.centerTabBtn}
-            onPress={handleStartInterview}
+            onPress={() => {
+              if (activeSession) {
+                handleStartInterview();
+              } else {
+                setActiveTab('dashboard');
+              }
+            }}
           >
             <Ionicons name="mic" size={24} color="#FFFFFF" />
           </TouchableOpacity>

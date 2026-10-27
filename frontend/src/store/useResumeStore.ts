@@ -8,6 +8,7 @@ interface ResumeState {
   isAnalyzing: boolean;
   error: string | null;
   analyzeResumeText: (text: string, role: string) => Promise<boolean>;
+  uploadResumeFile: (file: File, role: string) => Promise<boolean>;
   loadLatestResume: () => Promise<void>;
 }
 
@@ -63,6 +64,23 @@ export const useResumeStore = create<ResumeState>((set) => ({
 
       set({ resume: fallback, isAnalyzing: false });
       return true;
+    }
+  },
+
+  uploadResumeFile: async (file: File, role: string) => {
+    set({ isAnalyzing: true, error: null });
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('target_role', role);
+      const res = await apiClient.post('/resume/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      set({ resume: res.data.resume, isAnalyzing: false });
+      return true;
+    } catch {
+      set({ isAnalyzing: false, error: 'Could not upload resume. Paste the text instead.' });
+      return false;
     }
   },
 

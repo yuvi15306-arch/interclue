@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useInterviewStore } from '../store/useInterviewStore';
 import { QuestionBankItem, QuestionCategory } from '../types';
 import { apiClient } from '../services/api';
+import { speakText, stopSpeaking } from '../services/speech';
 
 interface QuestionBankScreenProps {
   onPracticeQuestion: (qText: string) => void;
@@ -90,8 +91,40 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('All');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingBank, setIsLoadingBank] = useState(false);
+  const [bankMeta, setBankMeta] = useState({ questions_per_category: 55, free_tier_limit: 5, is_pro: false });
 
-  const categories = ['All', 'Technical', 'Behavioral', 'HR', 'Situational', 'Bookmarked'];
+  const isPro = user?.subscription_tier !== 'free';
+  const categories = ['All', 'Technical', 'Behavioral', 'HR', 'Situational', 'Aptitude', 'Bookmarked'];
+
+  useEffect(() => {
+    const loadBank = async () => {
+      setIsLoadingBank(true);
+      try {
+        const params: Record<string, string> = {
+          role: user?.profile?.target_role || 'Full Stack Developer',
+        };
+        if (selectedCat !== 'All' && selectedCat !== 'Bookmarked') {
+          params.category = selectedCat;
+        }
+        const res = await apiClient.get('/question-bank/', { params });
+        setBankMeta({
+          questions_per_category: res.data.questions_per_category || 55,
+          free_tier_limit: res.data.free_tier_limit || 5,
+          is_pro: !!res.data.is_pro,
+        });
+        if (Array.isArray(res.data.questions) && res.data.questions.length > 0) {
+          setQuestions(res.data.questions);
+        }
+      } catch {
+        // keep local starter list
+      } finally {
+        setIsLoadingBank(false);
+      }
+    };
+    loadBank();
+    return () => stopSpeaking();
+  }, [selectedCat, user?.profile?.target_role, user?.subscription_tier]);
 
   const filteredQuestions = questions.filter((q) => {
     const matchesCat =
@@ -150,6 +183,7 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
   };
 
   const handlePractice = async (q: QuestionBankItem) => {
+    if (q.is_locked) return;
     await startInterview({
       role: (q.role as any) || 'Full Stack Developer',
       difficulty: (q.difficulty as any) || 'Junior',
@@ -202,7 +236,7 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
         <View style={{ flex: 1 }}>
           <Text style={styles.generateTitle}>Personalized Question Engine</Text>
           <Text style={styles.generateSub}>
-            Generate unlimited questions based on your role & skills
+            {bankMeta.questions_per_category} questions per category. Free tier unlocks {bankMeta.free_tier_limit}. Gemini generates extras for your role.
           </Text>
         </View>
         <TouchableOpacity
@@ -221,9 +255,20 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
         </TouchableOpacity>
       </View>
 
+      {!isPro ? (
+        <View style={styles.freeBanner}>
+          <Ionicons name="lock-closed" size={14} color="#F59E0B" />
+          <Text style={styles.freeBannerText}>
+            Free plan: {bankMeta.free_tier_limit} questions visible per category. Upgrade to open all {bankMeta.questions_per_category}.
+          </Text>
+        </View>
+      ) : null}
+
       {/* Questions List */}
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {filteredQuestions.length === 0 ? (
+        {isLoadingBank ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        ) : filteredQuestions.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="file-tray-outline" size={40} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No questions found</Text>
@@ -257,10 +302,22 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
                 <Text style={styles.roleSub}>
                   {q.role} • {q.difficulty}
                 </Text>
-                <TouchableOpacity style={styles.practiceBtn} onPress={() => handlePractice(q)}>
-                  <Ionicons name="play" size={12} color="#FFFFFF" />
-                  <Text style={styles.practiceText}>Practice Now</Text>
-                </TouchableOpacity>
+                {q.is_locked ? (
+                  <View style={styles.lockedBtn}>
+                    <Ionicons name="lock-closed" size={12} color="#F59E0B" />
+                    <Text style={styles.lockedText}>Pro only</Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity style={styles.listenMini} onPress={() => speakText(q.question_text)}>
+                      <Ionicons name="volume-high" size={12} color={colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.practiceBtn} onPress={() => handlePractice(q)}>
+                      <Ionicons name="play" size={12} color="#FFFFFF" />
+                      <Text style={styles.practiceText}>Practice Now</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
           ))
@@ -355,6 +412,44 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  freeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  freeBannerText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
+  lockedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  lockedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  listenMini: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   list: {
     flex: 1,

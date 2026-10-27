@@ -110,7 +110,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       '3 AI mock interviews per day',
       'Text-based interview engine',
       'Basic answer feedback',
-      'Community question bank',
+      '5 question-bank items per category',
     ],
     is_popular: false,
     play_store_product_id: 'interclue_free',

@@ -32,6 +32,28 @@ class ResumeService:
             return ""
 
     def analyze_resume_text(self, text: str, role_hint: str = "Software Engineer") -> Dict[str, Any]:
+        gemini_result = gemini_service.analyze_resume(text, role_hint=role_hint)
+        heuristic = self._heuristic_analyze(text, role_hint)
+        if not gemini_result:
+            heuristic["engine"] = "heuristic"
+            return heuristic
+
+        merged = {
+            "ats_score": gemini_result.get("ats_score", heuristic["ats_score"]),
+            "contact_email": heuristic.get("contact_email"),
+            "detected_role": gemini_result.get("detected_role") or role_hint,
+            "parsed_skills": gemini_result.get("parsed_skills") or heuristic["parsed_skills"],
+            "strengths": gemini_result.get("strengths") or heuristic["strengths"],
+            "weaknesses": gemini_result.get("weaknesses") or heuristic["weaknesses"],
+            "suggestions": gemini_result.get("suggestions") or heuristic["suggestions"],
+            "generated_questions": gemini_result.get("generated_questions") or heuristic["generated_questions"],
+            "engine": "gemini",
+        }
+        if not merged["parsed_skills"]:
+            merged["parsed_skills"] = heuristic["parsed_skills"]
+        return merged
+
+    def _heuristic_analyze(self, text: str, role_hint: str = "Software Engineer") -> Dict[str, Any]:
         text_lower = text.lower()
 
         # 1. Detect candidate email

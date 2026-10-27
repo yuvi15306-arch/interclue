@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     # Subscription Limits
     FREE_INTERVIEWS_PER_DAY: int = 3
+    FREE_QUESTION_BANK_PER_CATEGORY: int = 5
+    QUESTIONS_PER_CATEGORY: int = 55
 
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [

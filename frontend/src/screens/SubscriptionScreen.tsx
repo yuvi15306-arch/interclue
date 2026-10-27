@@ -17,7 +17,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onOpenUp
     { feature: 'Voice Interview Mode', free: 'Unavailable', pro: 'Included (Deepgram / Whisper)' },
     { feature: 'Full ATS Resume Analyzer', free: 'Basic scan', pro: 'Full scan + Resume questions' },
     { feature: 'Competency Radar & Analytics', free: 'Basic average', pro: 'Multi-session radar & trends' },
-    { feature: 'Personalized Question Bank', free: 'Limited questions', pro: 'Unlimited AI Generation' },
+    { feature: 'Personalized Question Bank', free: '5 per category', pro: '55 per category + Gemini' },
     { feature: 'Gemini 1.5 Pro Processing', free: 'Standard model', pro: 'Priority high-depth feedback' },
   ];
 
@@ -38,7 +38,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ onOpenUp
         <Text style={styles.planDesc}>
           {isPro
             ? 'You have unlimited access to AI mock interviews, voice mode, and resume analysis.'
-            : 'You are on the free plan with 3 mock interviews per day.'}
+            : 'You are on the free plan with 3 mock interviews per day and 5 question-bank items per category.'}
         </Text>
 
         {!isPro ? (

@@ -53,7 +53,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     onStartInterview();
   };
 
-  const categories: QuestionCategory[] = ['Mixed', 'Technical', 'Behavioral', 'HR', 'Situational'];
+  const categories: QuestionCategory[] = ['Mixed', 'Technical', 'Behavioral', 'HR', 'Situational', 'Aptitude'];
+  const isFree = user?.subscription_tier === 'free' || !user?.subscription_tier;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -106,7 +107,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </View>
 
         {/* Category selector */}
-        <Text style={styles.selectorLabel}>Question Category</Text>
+        <Text style={styles.selectorLabel}>Interview Type (Gemini writes questions for this type)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
           {categories.map((cat) => (
             <TouchableOpacity
@@ -138,6 +139,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             ))}
           </View>
         </View>
+
+        <Text style={styles.geminiHint}>
+          {isFree
+            ? 'Free tier: 5 questions per category in the bank. Gemini still generates this mock from your selected type.'
+            : 'Pro: full 55-question bank per category plus Gemini generation for this interview type.'}
+        </Text>
 
         {/* Big Start Button */}
         <TouchableOpacity style={styles.startBtn} onPress={handleLaunchMockInterview}>
@@ -432,6 +439,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  geminiHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginBottom: 12,
+    lineHeight: 15,
   },
   metricsGrid: {
     flexDirection: 'row',

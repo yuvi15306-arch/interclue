@@ -8,9 +8,11 @@ interface HeaderProps {
   title?: string;
   onOpenProfile?: () => void;
   onOpenUpgrade?: () => void;
+  onBack?: () => void;
+  onRefresh?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, onOpenProfile, onOpenUpgrade }) => {
+export const Header: React.FC<HeaderProps> = ({ title, onOpenProfile, onOpenUpgrade, onBack, onRefresh }) => {
   const { user } = useAuthStore();
   const streak = user?.profile?.current_streak || 1;
   const isPro = user?.subscription_tier !== 'free';
@@ -28,6 +30,15 @@ export const Header: React.FC<HeaderProps> = ({ title, onOpenProfile, onOpenUpgr
       </View>
 
       <View style={styles.actionsRow}>
+        <TouchableOpacity style={styles.navIconBtn} onPress={onBack} accessibilityLabel="Back page">
+          <Ionicons name="arrow-back" size={16} color={colors.text} />
+          <Text style={styles.navIconText}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navIconBtn} onPress={onRefresh} accessibilityLabel="Refresh page">
+          <Ionicons name="refresh" size={16} color={colors.text} />
+          <Text style={styles.navIconText}>Refresh</Text>
+        </TouchableOpacity>
+
         {/* Streak Counter */}
         <View style={styles.streakBadge}>
           <Ionicons name="flame" size={16} color="#F59E0B" />
@@ -107,6 +118,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  navIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceLight,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  navIconText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text,
   },
   streakBadge: {
     flexDirection: 'row',
