@@ -47,7 +47,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8081",
         "http://127.0.0.1:19006",
-        "*"
+        "https://interclue-frontend.vercel.app",
     ]
 
     _backend_env: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
