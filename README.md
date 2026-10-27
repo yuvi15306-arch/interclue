@@ -45,103 +45,101 @@ InterClue is a production-ready SaaS mobile application engineered to empower st
 
 ```
 interclue/
-├── backend/                  # FastAPI Enterprise Backend
+├── backend/                      # Self-Contained FastAPI Backend & Microservices
 │   ├── app/
-│   │   ├── api/              # RESTful API endpoints
-│   │   │   ├── endpoints/    # Auth, Interview, Resume, Question Bank, Analytics, Dashboard, Subscriptions, Admin
-│   │   │   └── api_v1.py     # Master v1 router
-│   │   ├── core/             # Config, Database sessions, JWT Security, Cache
-│   │   ├── models/           # SQLAlchemy DB Models (Users, Profiles, Interviews, Questions, etc.)
-│   │   ├── schemas/          # Pydantic v2 validation models
-│   │   └── services/         # Gemini AI, STT (Deepgram/Whisper), Resume ATS, Analytics
-│   ├── .env.example          # Environment variable template
-│   ├── Dockerfile            # Container definition
-│   ├── main.py               # Application entrypoint & auto-seeding
-│   └── requirements.txt      # Python dependencies
+│   │   ├── api/                  # RESTful API endpoints (Auth, Interviews, Resume, etc.)
+│   │   ├── core/                 # Config, Database sessions, JWT Security, Cache
+│   │   ├── models/               # SQLAlchemy DB Models (Users, Profiles, Interviews, etc.)
+│   │   ├── schemas/              # Pydantic v2 validation models
+│   │   └── services/             # Gemini AI, STT (Deepgram/Whisper), Resume ATS
+│   ├── database/                 # Production Database DDL & Seeds
+│   │   ├── schema.sql            # PostgreSQL DDL for Neon / RDS / Supabase
+│   │   └── seeds.sql             # Demonstration seeds & realistic mock questions
+│   ├── tests/                    # Pytest Backend Unit & Integration Tests
+│   │   ├── conftest.py           # Database fixtures & TestClient
+│   │   ├── test_admin.py         # Admin management tests
+│   │   ├── test_auth.py          # User auth & token refresh tests
+│   │   ├── test_dashboard.py     # Metrics & analytics tests
+│   │   ├── test_interviews.py    # AI question generation & answer scoring tests
+│   │   ├── test_question_bank.py # Question bank tests
+│   │   ├── test_resume_analyzer.py # ATS parsing tests
+│   │   └── test_subscriptions.py # Subscription & billing tests
+│   ├── .env.example              # Environment variable template
+│   ├── .gitignore                # Backend-specific ignore rules
+│   ├── Dockerfile                # Standalone container definition
+│   ├── main.py                   # Application entrypoint & auto-seeding
+│   ├── Procfile                  # Process definition for Render / PaaS
+│   ├── pytest.ini                # Backend pytest configuration
+│   ├── render.yaml               # Render Blueprint service definition
+│   ├── requirements.txt          # Python dependencies
+│   └── runtime.txt               # Python runtime version (3.11.9)
 │
-├── frontend/                 # React Native Mobile App (Expo + TypeScript)
+├── frontend/                     # Self-Contained React Native Web & Mobile App (Expo)
+│   ├── assets/                   # App icons, splash screens, and web icons
 │   ├── src/
-│   │   ├── components/       # Reusable UI: Header, MetricCard, RadarChart, WeeklyProgressChart, AudioVisualizer, Modals
-│   │   ├── navigation/       # AppNavigator (Tabs + Interview Stack)
-│   │   ├── screens/          # Onboarding, Dashboard, Interview Room, Evaluation Report, Resume Analyzer, Question Bank, Analytics, Subscriptions, Admin
-│   │   ├── services/         # Axios API client & mock datasets
-│   │   ├── store/            # Zustand reactive state stores
-│   │   ├── theme/            # Brand tokens (#2563EB, #0F172A, #38BDF8)
-│   │   └── types/            # TypeScript interfaces
-│   ├── App.tsx               # Main mobile entrypoint
-│   └── package.json          # Dependencies & scripts
+│   │   ├── components/           # Reusable UI (Header, MetricCard, RadarChart, AudioVisualizer)
+│   │   ├── navigation/           # AppNavigator (Tabs + Interview Stack)
+│   │   ├── screens/              # Onboarding, Dashboard, Interview Room, Resume Analyzer, etc.
+│   │   ├── services/             # Axios API client & mock datasets
+│   │   ├── store/                # Zustand reactive state stores
+│   │   ├── theme/                # Brand tokens (#2563EB, #0F172A, #38BDF8)
+│   │   └── types/                # TypeScript interfaces
+│   ├── .env.example              # Frontend environment template (EXPO_PUBLIC_API_URL)
+│   ├── .gitignore                # Frontend-specific ignore rules
+│   ├── App.tsx                   # Main entrypoint component
+│   ├── app.json                  # Expo app configuration
+│   ├── index.ts                  # App registry entrypoint
+│   ├── package.json              # Dependencies & scripts (start, web, build)
+│   ├── tsconfig.json             # TypeScript configuration
+│   └── vercel.json               # Vercel deployment configuration & static routing
 │
-├── database/                 # Production Database Scripts
-│   ├── schema.sql            # PostgreSQL DDL for Neon / RDS / Supabase
-│   └── seeds.sql             # Demonstration seeds & realistic mock questions
+├── docs/                         # Architectural Documentation & Deployment
+│   ├── ARCHITECTURE.md           # High-level architecture & data flows
+│   ├── API_DOCUMENTATION.md      # Detailed OpenAPI endpoint specs
+│   ├── DEPLOYMENT_GUIDE.md       # Complete Vercel & Render deployment guide
+│   └── MOBILE_SETUP_GUIDE.md     # EAS build & Google Play setup
 │
-├── docs/                     # Architectural Documentation & Deployment
-│   ├── ARCHITECTURE.md       # High-level architecture & data flows
-│   ├── API_DOCUMENTATION.md  # Detailed OpenAPI endpoint specs
-│   ├── DEPLOYMENT_GUIDE.md   # Deployment on Render, Railway, Neon, Cloudinary
-│   └── MOBILE_SETUP_GUIDE.md # EAS build & Google Play setup
-│
-├── tests/                    # Backend Pytest Test Suite
-│   ├── conftest.py           # Database fixtures
-│   ├── test_auth.py          # User auth & token refresh tests
-│   ├── test_interviews.py    # AI question generation & answer scoring tests
-│   ├── test_resume_analyzer.py # ATS parsing tests
-│   └── test_dashboard.py     # Metrics & analytics tests
-│
-├── docker-compose.yml        # Multi-container orchestration (FastAPI + PostgreSQL + Redis)
-└── README.md                 # Complete documentation
+├── .gitignore                    # Master root gitignore
+├── docker-compose.yml            # Multi-container orchestration (FastAPI + PostgreSQL + Redis)
+├── pytest.ini                    # Root pytest runner configuration
+├── render.yaml                   # 1-Click Render Blueprint configuration
+└── vercel.json                   # Root Vercel monorepo fallback configuration
 ```
 
 ---
 
-## ⚡ Quick Start Guide
+## ⚡ Quick Start & Deployment Guide
 
-### 1. Run the Backend API
+### 1. Deploy Frontend to Vercel (1-Click)
+- On [Vercel](https://vercel.com): **New Project** -> Select `interclue`.
+- **Root Directory**: Select `frontend` (or leave at root; `vercel.json` handles both).
+- **Environment Variable**: `EXPO_PUBLIC_API_URL=https://<your-backend>.onrender.com`.
+- Deploy!
+
+### 2. Deploy Backend to Render (1-Click)
+- On [Render](https://render.com): **New + -> Blueprint** -> Connect `interclue` (reads root `render.yaml`).
+- Alternatively, create a **Web Service** with **Root Directory** `backend` and command `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+
+### 3. Run Locally
 
 ```bash
-# Navigate to backend directory
+# Backend
 cd backend
-
-# Create and activate virtual environment
 python -m venv venv
-.\venv\Scripts\activate   # Windows
-# source venv/bin/activate # macOS/Linux
-
-# Install dependencies
+.\venv\Scripts\activate
 pip install -r requirements.txt
-
-# Start FastAPI development server
 uvicorn main:app --reload --port 8000
-```
-- API is available at: `http://localhost:8000`
-- Interactive Swagger documentation at: `http://localhost:8000/docs`
-- Default demo credentials:
-  - Student: `demo@interclue.ai` / `interclue123`
-  - Admin: `admin@interclue.ai` / `admin123`
 
-### 2. Run the Mobile App
-
-```bash
-# Navigate to frontend directory
+# Frontend
 cd frontend
-
-# Install packages
 npm install
+npm run start       # Mobile / Expo Go
+npm run web         # Local Web preview
+npm run build       # Production static export to dist/
 
-# Start Expo development server
-npm run start
+# Run Tests
+pytest              # From root or inside backend/
 ```
-- **Physical Phone**: Scan the QR code using the Expo Go mobile app.
-- **Web Browser**: Press `w` in the terminal to open the web view at `http://localhost:8081`.
-- **Android Emulator**: Press `a`.
-
-### 3. Run Backend Automated Tests
-
-```bash
-# From repository root:
-.\backend\venv\Scripts\pytest tests
-```
-*All 5 unit & integration test suites validate authentication, interview flows, ATS parsing, and dashboard metrics.*
 
 ---
 

@@ -1,32 +1,57 @@
 # InterClue Cloud Deployment Guide
 
-Follow this guide to deploy the InterClue backend and database to production environments on **Render**, **Railway**, and **Neon PostgreSQL**.
+Follow this guide to deploy the **Frontend on Vercel** and the **Backend & Database on Render, Railway, and Neon PostgreSQL**.
 
 ---
 
-## 1. Database Provisioning (Neon PostgreSQL)
+## 1. Deploying Frontend to Vercel
 
-1. Sign up or log into [Neon Console](https://neon.tech).
-2. Create a new project called `interclue-production`.
-3. Copy the Postgres connection string from your dashboard:
+The frontend is an Expo / React Native Web application fully configured for static hosting on Vercel.
+
+### Method A: Connect Git Repo (Recommended)
+1. Log into your [Vercel Dashboard](https://vercel.com) and click **Add New -> Project**.
+2. Select your `interclue` repository.
+3. In **Project Configuration**:
+   - **Framework Preset**: Other (or Expo)
+   - **Root Directory**: Click `Edit` and select `frontend`
+   - **Build Command**: `npx expo export -p web` (or `npm run build`)
+   - **Output Directory**: `dist`
+4. In **Environment Variables**, add:
    ```env
-   DATABASE_URL=postgresql://neondb_owner:YOUR_PASSWORD@ep-sparkling-wave-12345.us-east-2.aws.neon.tech/neondb?sslmode=require
+   EXPO_PUBLIC_API_URL=https://your-render-backend-url.onrender.com
    ```
-4. Optional: Run the SQL schema script in Neon SQL Editor:
-   Copy and execute `database/schema.sql`.
+5. Click **Deploy**. Vercel will build and host the responsive web app at `https://<your-project>.vercel.app`.
+
+*(Note: If you deploy with Root Directory left at repository root `./`, the root `vercel.json` will automatically orchestrate the frontend build for you!)*
 
 ---
 
 ## 2. Deploying Backend to Render
 
-1. Go to [Render Dashboard](https://render.com) and click **New + -> Web Service**.
-2. Connect your GitHub repository containing `interclue`.
-3. Set the following build and start configurations:
+The backend is a FastAPI Python application with all database scripts and tests self-contained in `backend/`.
+
+### Method A: 1-Click Render Blueprint (Fastest)
+1. Log into [Render Dashboard](https://render.com).
+2. Click **New + -> Blueprint**.
+3. Connect your `interclue` repository.
+4. Render will automatically read `render.yaml` from the repository root, pre-configuring:
+   - Root directory: `backend`
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - Health check: `/health`
+5. Supply your secrets (`DATABASE_URL`, `GEMINI_API_KEY`, etc.) and click **Apply**.
+
+### Method B: Manual Web Service
+1. In Render Dashboard, click **New + -> Web Service**.
+2. Connect your GitHub repository.
+3. Configure the service:
+   - **Name**: `interclue-backend`
    - **Root Directory**: `backend`
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. In **Environment Variables**, add:
+   - **Health Check Path**: `/health`
+4. Under **Environment Variables**, configure:
    ```env
    ENVIRONMENT=production
    SECRET_KEY=generate-a-strong-random-64-char-string
@@ -39,30 +64,43 @@ Follow this guide to deploy the InterClue backend and database to production env
    CLOUDINARY_API_SECRET=your_cloudinary_secret
    DEEPGRAM_API_KEY=your_deepgram_key
    ```
-5. Click **Create Web Service**. Render will deploy the API and provide a live URL such as `https://interclue-api.onrender.com`.
+5. Click **Create Web Service**. Your API will be live at `https://<service-name>.onrender.com`.
 
 ---
 
-## 3. Deploying Backend to Railway
+## 3. Database Provisioning (Neon PostgreSQL)
+
+1. Sign up or log into [Neon Console](https://neon.tech).
+2. Create a new project called `interclue-production`.
+3. Copy the Postgres connection string from your dashboard:
+   ```env
+   DATABASE_URL=postgresql://neondb_owner:YOUR_PASSWORD@ep-sparkling-wave-12345.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
+4. Optional: Run the SQL schema script in Neon SQL Editor:
+   Copy and execute `backend/database/schema.sql` (and `backend/database/seeds.sql` for demo questions).
+
+---
+
+## 4. Deploying Backend to Railway
 
 1. Install Railway CLI or go to [railway.app](https://railway.app).
 2. Click **New Project -> Deploy from GitHub repo**.
 3. Add a PostgreSQL plugin (or connect Neon DB string).
 4. Set the root directory to `/backend`.
 5. Set environment variables identical to Render.
-6. Railway will automatically detect FastAPI and launch with Uvicorn.
+6. Railway detects FastAPI automatically and launches with Uvicorn.
 
 ---
 
-## 4. Cloudinary Setup for Resumes & Audio
+## 5. Cloudinary Setup for Resumes & Audio
 
 1. Register at [Cloudinary](https://cloudinary.com).
 2. In Dashboard, copy your **Cloud Name**, **API Key**, and **API Secret**.
-3. Supply them to the `CLOUDINARY_*` environment variables.
+3. Supply them to the `CLOUDINARY_*` environment variables in your Render backend settings.
 
 ---
 
-## 5. Google Play Billing Setup
+## 6. Google Play Billing Setup
 
 1. In Google Play Console:
    - Create your application: `com.interclue.app`
@@ -71,4 +109,4 @@ Follow this guide to deploy the InterClue backend and database to production env
      - Product ID: `interclue_pro_annual` ($149.99/yr)
 2. Setup **Real-time developer notifications (RTDN)**:
    - Create a Google Cloud Pub/Sub topic.
-   - Point the notification webhook to `https://interclue-api.onrender.com/subscriptions/webhook`.
+   - Point the notification webhook to `https://<your-backend>.onrender.com/subscriptions/webhook`.

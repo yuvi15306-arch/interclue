@@ -5,9 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Ensure backend directory is in sys.path regardless of execution directory
-backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
+alt_backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+if os.path.exists(alt_backend_dir) and alt_backend_dir not in sys.path:
+    sys.path.insert(0, alt_backend_dir)
 
 
 

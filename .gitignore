@@ -1,23 +1,53 @@
-# Dependencies
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
 node_modules/
-backend/venv/
-backend/__pycache__/
-backend/*/__pycache__/
-backend/*/*/__pycache__/
-backend/*/*/*/__pycache__/
+.pnp
+.pnp.js
+
+# ==========================================
+# Python & Bytecode
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
 
-# Environment Variables
+# ==========================================
+# Virtual Environments
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
 .env
+.env*.local
 backend/.env
+frontend/.env
+frontend/.env*.local
 
-# Databases & Cache
+# ==========================================
+# Databases & Runtime State
+# ==========================================
 *.db
+*.sqlite
 *.sqlite3
 
-# Expo & Mobile
+# ==========================================
+# Expo & Mobile Builds
+# ==========================================
 .expo/
-dist/
+frontend/dist/
 web-build/
 *.jks
 *.p8
@@ -26,13 +56,18 @@ web-build/
 *.mobileprovision
 *.orig.*
 
-# Logs
+# ==========================================
+# Logs & Diagnostic Files
+# ==========================================
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS
+# ==========================================
+# Operating System & IDE
+# ==========================================
 .DS_Store
 Thumbs.db
 *.bak
+.idea/
