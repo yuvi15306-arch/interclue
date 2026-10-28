@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     FREE_QUESTION_BANK_PER_CATEGORY: int = 5
     QUESTIONS_PER_CATEGORY: int = 55
 
+    # Supabase Authentication & Database
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
+
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",

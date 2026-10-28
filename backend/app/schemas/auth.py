@@ -75,3 +75,28 @@ class TokenRefreshRequest(BaseModel):
 class TokenData(BaseModel):
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+
+class SupabaseSyncRequest(BaseModel):
+    access_token: str
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    target_role: Optional[str] = "Full Stack Developer"
+    experience_level: Optional[str] = "Junior"
+    interview_type: Optional[str] = "Mixed"
+
+
+class SupabaseLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class SupabaseRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    target_role: Optional[str] = "Full Stack Developer"
+    experience_level: Optional[str] = "Junior"
+    interview_type: Optional[str] = "Mixed"
+

@@ -39,8 +39,13 @@ class EvaluationResponse(BaseModel):
     confidence_score: float = Field(..., ge=0, le=10)
     clarity_score: float = Field(..., ge=0, le=10)
     overall_score: float = Field(..., ge=0, le=10)
+    is_correct: Optional[bool] = None
+    accuracy_level: Optional[str] = None
+    feedback_summary: Optional[str] = None
     strengths: List[str]
     weaknesses: List[str]
+    corrections_and_misconceptions: Optional[List[str]] = []
+    ideal_answer: Optional[str] = None
     suggestions: List[str]
     response_id: Optional[int] = None
     next_question: Optional[QuestionResponse] = None

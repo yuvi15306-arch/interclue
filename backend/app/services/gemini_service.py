@@ -3,94 +3,45 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from app.core.config import settings
-from app.data.question_bank_data import list_category_questions
+from app.core.question_repository import QUESTION_BANK, get_random_questions, get_questions
+
+logger = logging.getLogger(__name__)
 
 INTERVIEW_TYPE_CATEGORIES = {
-    "Technical": ["Technical"],
+    "Technical": ["Technical", "Programming Fundamentals", "DBMS and SQL", "DSA", "Web Development and APIs", "OS and Networks"],
     "Behavioral": ["Behavioral"],
     "HR": ["HR"],
-    "Situational": ["Situational"],
-    "Aptitude": ["Aptitude"],
-    "Mixed": ["Technical", "Behavioral", "Situational", "HR", "Aptitude"],
+    "Situational": ["Behavioral"],
+    "Aptitude": ["Programming Fundamentals", "DSA"],
+    "Project": ["Project"],
+    "Mixed": ["Programming Fundamentals", "DBMS and SQL", "DSA", "Web Development and APIs", "OS and Networks", "Project", "HR", "Behavioral"],
 }
 
 
 def resolve_question_category(interview_type: str, index: int = 0, requested: Optional[str] = None) -> str:
     itype = (interview_type or "Mixed").strip()
-    if itype != "Mixed":
-        return INTERVIEW_TYPE_CATEGORIES.get(itype, [itype])[0]
-    if requested and requested in INTERVIEW_TYPE_CATEGORIES and requested != "Mixed":
+    if requested and requested != "Mixed" and requested != "All":
         return requested
+    if itype in INTERVIEW_TYPE_CATEGORIES and itype != "Mixed":
+        cats = INTERVIEW_TYPE_CATEGORIES[itype]
+        return cats[index % len(cats)]
     mix = INTERVIEW_TYPE_CATEGORIES["Mixed"]
     return mix[index % len(mix)]
 
-logger = logging.getLogger(__name__)
 
-# Fallback question bank by role to ensure 100% reliability offline/online
+# Fallback questions mapped to categories and roles
 FALLBACK_QUESTIONS = {
-    "Frontend Developer": [
-        "Explain how React's Virtual DOM works and how reconciliation improves rendering performance compared to direct DOM manipulation.",
-        "What are the core differences between CSS Grid and Flexbox, and in what scenarios would you choose one over the other?",
-        "How would you optimize the Core Web Vitals (LCP, FID/INP, CLS) of a heavy single-page application?",
-        "Describe how you handle state management across deeply nested components in a large frontend application.",
-        "Tell me about a time you had to resolve a tricky cross-browser compatibility or performance issue."
-    ],
-    "Backend Developer": [
-        "How do you design an idempotent RESTful API, and why is idempotency crucial for payment and order processing?",
-        "Explain the differences between SQL and NoSQL databases. When would you choose PostgreSQL versus MongoDB or Cassandra?",
-        "How would you handle database connection pooling and query optimization under high concurrency?",
-        "Describe how you implement JWT authentication with secure refresh token rotation and token revoking.",
-        "Tell me about a challenging distributed system bug or race condition you encountered and how you solved it."
-    ],
-    "Full Stack Developer": [
-        "Walk me through the architecture of a real-time notification system connecting a mobile/web client with a backend cluster.",
-        "How do you approach database migrations in production without causing downtime or schema lockups?",
-        "Explain the end-to-end security measures you would take to protect an application from SQL injection, XSS, and CSRF attacks.",
-        "How do you decide what business logic belongs in the frontend client versus the backend API?",
-        "Describe a project where you had to bridge modern frontend reactive frameworks with complex backend database transactions."
-    ],
-    "Python Developer": [
-        "Explain Python's Global Interpreter Lock (GIL) and how it impacts CPU-bound versus I/O-bound concurrency. How does Python 3.13+ free-threading change this?",
-        "What is the difference between `@classmethod`, `@staticmethod`, and instance methods in Python? Give practical examples.",
-        "How does Python's garbage collection work, particularly regarding reference counting and cyclical garbage collection?",
-        "How do you leverage Python generators and iterators to process large datasets without memory exhaustion?",
-        "Describe your approach to profiling and optimizing a slow Python web service."
-    ],
-    "Java Developer": [
-        "Explain the Java Memory Model (Heap, Stack, Metaspace) and how JVM Garbage Collectors (like G1 or ZGC) work.",
-        "What is the difference between `synchronized`, `ReentrantLock`, and atomic variables in multi-threaded Java applications?",
-        "How does Spring Boot's Dependency Injection and Inversion of Control container manage the lifecycle of beans?",
-        "Explain how Java streams and lambdas work under the hood, and potential pitfalls regarding parallel streams.",
-        "Tell me about a time you diagnosed a memory leak or CPU spike in a production Java application."
-    ],
-    "Data Analyst": [
-        "How do you determine whether a correlation between two variables implies causation in an A/B testing experiment?",
-        "Explain window functions in SQL (such as `ROW_NUMBER()`, `RANK()`, `LEAD()`, `LAG()`) and when you would use them.",
-        "How do you handle missing, outlier, or biased data before presenting insights to executive stakeholders?",
-        "Describe a data visualization dashboard you created that directly led to a business decision or operational change.",
-        "Walk me through how you would calculate Customer Lifetime Value (CLV) and churn rate using transaction logs."
-    ],
-    "Data Scientist": [
-        "How do you combat the curse of dimensionality and overfitting in high-dimensional feature spaces?",
-        "Explain the trade-offs between precision and recall, and how you choose an appropriate threshold using ROC-AUC and PR curves.",
-        "How do Transformer architectures and self-attention mechanisms differ from traditional recurrent networks like LSTMs?",
-        "Describe how you validate machine learning models in production to detect data drift and concept drift.",
-        "Tell me about a machine learning model you built from feature engineering to deployment."
-    ],
-    "Product Manager": [
-        "How do you prioritize competing feature requests from enterprise customers, sales teams, and engineering constraints?",
-        "Tell me about a product you love. What are two metrics you would track to measure its core value, and what would you improve next?",
-        "How do you handle a situation where a major product release fails to meet its primary North Star metric?",
-        "Describe how you conduct customer discovery interviews to identify latent unmet user needs.",
-        "Walk me through how you define Minimum Viable Product (MVP) scope when time and resources are severely constrained."
-    ],
-    "UI/UX Designer": [
-        "Walk me through your end-to-end design process from problem discovery to developer handoff.",
-        "How do you balance aesthetic delight with strict accessibility (WCAG 2.1 AA) guidelines and usability standards?",
-        "Describe a time when user testing results contradicted your initial design hypotheses. How did you iterate?",
-        "How do you design a scalable design system with clear design tokens, component variants, and auto-layout states?",
-        "How do you collaborate with engineering teams when technical constraints restrict ideal UX interactions?"
-    ]
+    "Programming Fundamentals": [q["question_text"] for q in QUESTION_BANK if q["category"] == "Programming Fundamentals"][:15],
+    "DBMS and SQL": [q["question_text"] for q in QUESTION_BANK if q["category"] == "DBMS and SQL"][:15],
+    "DSA": [q["question_text"] for q in QUESTION_BANK if q["category"] == "DSA"][:15],
+    "Web Development and APIs": [q["question_text"] for q in QUESTION_BANK if q["category"] == "Web Development and APIs"][:15],
+    "OS and Networks": [q["question_text"] for q in QUESTION_BANK if q["category"] == "OS and Networks"][:15],
+    "Project": [q["question_text"] for q in QUESTION_BANK if q["category"] == "Project"][:15],
+    "HR": [q["question_text"] for q in QUESTION_BANK if q["category"] == "HR"][:15],
+    "Behavioral": [q["question_text"] for q in QUESTION_BANK if q["category"] == "Behavioral"][:15],
+    "Frontend Developer": [q["question_text"] for q in QUESTION_BANK if q["category"] in ["Web Development and APIs", "Programming Fundamentals"]][:15],
+    "Backend Developer": [q["question_text"] for q in QUESTION_BANK if q["category"] in ["DBMS and SQL", "OS and Networks", "Project"]][:15],
+    "Full Stack Developer": [q["question_text"] for q in QUESTION_BANK if q["category"] in ["Web Development and APIs", "DBMS and SQL", "Project"]][:15],
 }
 
 
@@ -146,114 +97,63 @@ class GeminiService:
         previous_questions: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Generate a realistic interview question for the selected role, difficulty, and interview type.
+        Generate a realistic, insightful interview question for the selected role and category.
         """
         locked_category = resolve_question_category(interview_type, requested=category)
         prev = previous_questions or []
         avoid = "\n".join(f"- {q}" for q in prev[-8:]) if prev else "None yet."
 
-        style_guide = {
-            "Technical": "Ask a deep technical, architectural, or implementation question specific to the role. No behavioral icebreakers.",
-            "Behavioral": "Ask a STAR-style behavioral question about past actions, conflict, ownership, or growth. Do not ask trivia.",
-            "HR": "Ask a professional HR / culture-fit question (motivation, career goals, communication, values).",
-            "Situational": "Ask a hypothetical on-the-job scenario the candidate must walk through in real time.",
-            "Aptitude": "Ask a quantitative reasoning, estimation, complexity, or systems-math question relevant to the role.",
-        }.get(locked_category, "Ask a realistic interview question matching the interview style.")
+        prompt = f"""You are a Principal Engineer and seasoned Technical Hiring Manager conducting an interview for the role of '{role}'.
+Selected Candidate Difficulty: {difficulty}
+Question Category: {locked_category}
+Interview Track: {interview_type}
 
-        prompt = f"""You are an expert interviewer hiring for the position of '{role}'.
-Selected Difficulty: {difficulty}
-Interview Type chosen by the candidate: {interview_type}
-Question category you MUST use: {locked_category}
-
-Style rules:
-{style_guide}
+Instructions:
+1. Generate an authentic, challenging, industry-standard interview question tailored to this role and category.
+2. The question should test real-world architectural thinking, core fundamentals, and practical trade-offs.
+3. Provide 3-4 specific expected key points that a senior hiring assessor would look for in an ideal answer.
 
 Do NOT repeat any of these previous questions:
 {avoid}
 
-Task:
-Generate ONE original, realistic, {difficulty}-level {locked_category} interview question tailored to {role}.
-The question must clearly belong to {locked_category}, not a different interview type.
-
-Output MUST be valid JSON in this exact structure:
+Output format MUST be strictly a JSON object:
 {{
-    "question_text": "The interview question here",
+    "question_text": "The exact interview question",
     "category": "{locked_category}",
-    "expected_key_points": ["Key point 1 candidate should mention", "Key point 2", "Key point 3"]
+    "expected_key_points": [
+        "Key point 1 candidate should address",
+        "Key point 2 regarding mechanisms or trade-offs",
+        "Key point 3 demonstrating practical experience"
+    ]
 }}
 """
-        parsed = self._generate_json(prompt, temperature=0.7)
-        if parsed and parsed.get("question_text"):
+        parsed = self._generate_json(prompt, temperature=0.6)
+        if parsed and parsed.get("question_text") and parsed.get("expected_key_points"):
             parsed["category"] = locked_category
-            parsed.setdefault("expected_key_points", [
-                f"Role-relevant reasoning for {role}",
-                f"Clear {locked_category.lower()} structure",
-                "Concrete examples or trade-offs",
-            ])
             return parsed
 
-        return self._fallback_question(role, locked_category, prev)
+        # Repository-backed fallback generation
+        prev_set = set(prev)
+        pool = [
+            q for q in QUESTION_BANK
+            if (locked_category.lower() in q["category"].lower() or q["category"].lower() in locked_category.lower())
+            and q["question_text"] not in prev_set
+        ]
+        if not pool:
+            pool = [q for q in QUESTION_BANK if q["question_text"] not in prev_set]
+        if not pool:
+            pool = QUESTION_BANK
 
-    def _fallback_question(self, role: str, category: str, previous_questions: List[str]) -> Dict[str, Any]:
-        prev_set = set(previous_questions or [])
-        bank = list_category_questions(category, role)
-        if category == "Technical":
-            bank = FALLBACK_QUESTIONS.get(role, []) + bank
-        available = [q for q in bank if q not in prev_set]
-        chosen = available[0] if available else (bank[0] if bank else f"Tell me how you approach {category.lower()} work as a {role}.")
+        selected = pool[0] if pool else QUESTION_BANK[0]
         return {
-            "question_text": chosen,
-            "category": category,
-            "expected_key_points": [
-                f"Core fundamentals related to {role}",
-                f"Structured {category.lower()} reasoning with real-world examples",
-                "Awareness of trade-offs, edge cases, and best practices",
-            ],
+            "question_text": selected["question_text"],
+            "category": selected.get("category", locked_category),
+            "expected_key_points": selected.get("expected_key_points", [
+                f"Core conceptual foundations of {role}",
+                "Structured architectural reasoning and edge-case handling",
+                "Awareness of performance trade-offs"
+            ])
         }
-
-    def analyze_resume(self, resume_text: str, role_hint: str = "Software Engineer") -> Optional[Dict[str, Any]]:
-        excerpt = (resume_text or "")[:12000]
-        prompt = f"""You are an ATS (Applicant Tracking System) and senior recruiter evaluating a resume for '{role_hint}'.
-
-Resume:
-\"\"\"{excerpt}\"\"\"
-
-Score the resume for ATS keyword match, structure, quantified impact, skills density, and role fit.
-
-Return ONLY JSON:
-{{
-  "ats_score": 82.5,
-  "detected_role": "{role_hint}",
-  "parsed_skills": ["Python", "React"],
-  "strengths": ["strength 1", "strength 2"],
-  "weaknesses": ["weakness 1"],
-  "suggestions": ["actionable suggestion 1", "actionable suggestion 2"],
-  "generated_questions": [
-    "Resume-specific interview question 1",
-    "Resume-specific interview question 2",
-    "Resume-specific interview question 3",
-    "Resume-specific interview question 4",
-    "Resume-specific interview question 5"
-  ]
-}}
-ats_score must be a number from 0 to 100.
-generated_questions must be specific to claims in this resume, not generic.
-"""
-        parsed = self._generate_json(prompt, temperature=0.3)
-        if not parsed:
-            return None
-        try:
-            parsed["ats_score"] = float(parsed.get("ats_score", 70))
-        except (TypeError, ValueError):
-            parsed["ats_score"] = 70.0
-        parsed["ats_score"] = round(min(98.0, max(20.0, parsed["ats_score"])), 1)
-        parsed.setdefault("parsed_skills", [])
-        parsed.setdefault("strengths", [])
-        parsed.setdefault("weaknesses", [])
-        parsed.setdefault("suggestions", [])
-        parsed.setdefault("generated_questions", [])
-        parsed.setdefault("detected_role", role_hint)
-        return parsed
 
     def evaluate_response(
         self,
@@ -264,132 +164,323 @@ generated_questions must be specific to claims in this resume, not generic.
         category: str = "Technical"
     ) -> Dict[str, Any]:
         """
-        Evaluation Prompt:
-        Evaluate the candidate response and return JSON containing:
-        {
-          technical_score,
-          communication_score,
-          confidence_score,
-          clarity_score,
-          overall_score,
-          strengths,
-          weaknesses,
-          suggestions
-        }
+        Comprehensive Evaluation Prompt:
+        Strictly grades candidate answer for accuracy, depth, and communication.
+        Never hallucinates praise or high scores for incorrect, evasive, or off-topic responses.
         """
-        prompt = f"""You are a senior hiring manager and interview coach evaluating a candidate for '{role}' ({difficulty} level).
+        prompt = f"""You are a Principal Technical Interviewer and strict Hiring Assessor evaluating a candidate for the position of '{role}' ({difficulty} level).
 
 Interview Question:
 "{question_text}"
+Category: {category}
 
 Candidate's Answer:
-"{answer_text}"
+\"\"\"{answer_text}\"\"\"
 
-Task:
-Evaluate the candidate response objectively and provide constructive, professional feedback.
-All scores must be numerical floats from 0.0 to 10.0.
+CRITICAL EVALUATION MANDATE:
+1. TRUTHFULNESS & ACCURACY FIRST:
+   - Carefully verify if the candidate's answer is correct, partially correct, incorrect, or irrelevant.
+   - If the candidate's answer is FACTUALLY INCORRECT, GIBBERISH, AN ADMISSION OF NOT KNOWING (e.g. "I don't know", "skip"), OR OFF-TOPIC:
+     * YOU MUST NOT GIVE RANDOM HIGH MARKS OR HALLUCINATED PRAISE.
+     * Set `is_correct` to false.
+     * Set `accuracy_level` to "Incorrect" (or "Irrelevant" if off-topic).
+     * Set `technical_score` strictly between 1.0 and 3.5.
+     * Set `overall_score` strictly between 1.0 and 3.5.
+     * `strengths` must NOT claim they understood the topic! State only: ["Attempted to answer the prompt"] or leave empty.
+     * `weaknesses` MUST explicitly highlight the exact technical misconceptions, factual errors, and missed fundamentals.
+     * `corrections_and_misconceptions` MUST provide explicit factual corrections for the candidate's errors.
+     * `ideal_answer` MUST provide the correct model answer that should have been given.
+
+   - If the candidate's answer is PARTIALLY CORRECT:
+     * Set `is_correct` to false.
+     * Set `accuracy_level` to "Partially Correct".
+     * Set `technical_score` between 4.0 and 6.5.
+     * In `strengths`, mention what was factually accurate.
+     * In `weaknesses`, specify the missing pieces, edge cases, or misconceptions.
+     * Provide `corrections_and_misconceptions` and `ideal_answer`.
+
+   - If the candidate's answer is CORRECT AND ACCURATE:
+     * Set `is_correct` to true.
+     * Set `accuracy_level` to "Accurate".
+     * Set `technical_score` between 7.0 and 10.0 based on depth, trade-off analysis, and clarity.
+     * Highlight key strengths, minor areas to polish, and provide `ideal_answer`.
+
+2. EVALUATION METRICS (0.0 to 10.0 floats):
+   - `technical_score`: Factual accuracy, depth, algorithm/architecture correctness.
+   - `communication_score`: Clarity of expression, professional terminology, structure.
+   - `confidence_score`: Definitiveness, avoidance of excessive hedging.
+   - `clarity_score`: Directness in addressing the prompt.
+   - `overall_score`: Weighted holistic rating.
 
 Return ONLY a JSON object with this exact schema:
 {{
+  "is_correct": true,
+  "accuracy_level": "Accurate",
   "technical_score": 8.5,
   "communication_score": 8.0,
   "confidence_score": 7.5,
   "clarity_score": 8.0,
   "overall_score": 8.0,
+  "feedback_summary": "Concise 1-2 sentence executive summary of the response.",
   "strengths": [
-    "Identified the core concept accurately",
-    "Structured the response with clear logic"
+    "Specific technical accuracy observed in the answer"
   ],
   "weaknesses": [
-    "Could have included specific metrics or real-world numbers",
-    "Briefly missed addressing secondary trade-offs"
+    "Specific technical gap, error, or missing trade-off"
   ],
+  "corrections_and_misconceptions": [
+    "Clarification of any false assumptions or conceptual errors"
+  ],
+  "ideal_answer": "Complete, correct reference answer demonstrating how a top engineer would answer.",
   "suggestions": [
-    "Use the STAR method (Situation, Task, Action, Result) for behavioral answers",
-    "Mention performance or scalability considerations to demonstrate senior depth"
+    "Actionable tip to improve future interview performance"
   ]
 }}
 """
-        if self.client_available:
-            try:
-                model = self.genai.GenerativeModel(settings.GEMINI_MODEL)
-                response = model.generate_content(
-                    prompt,
-                    generation_config={"response_mime_type": "application/json", "temperature": 0.4}
-                )
-                text = response.text.strip()
-                # Clean code fences if any
-                clean_text = re.sub(r"^```json\s*", "", text)
-                clean_text = re.sub(r"\s*```$", "", clean_text)
-                parsed = json.loads(clean_text)
+        parsed = self._generate_json(prompt, temperature=0.2)
+        if parsed:
+            required_keys = ["technical_score", "communication_score", "confidence_score", "clarity_score", "overall_score"]
+            if all(k in parsed for k in required_keys):
+                for k in required_keys:
+                    parsed[k] = float(min(10.0, max(0.0, parsed[k])))
+                return parsed
 
-                # Validate expected keys
-                required_keys = ["technical_score", "communication_score", "confidence_score", "clarity_score", "overall_score"]
-                if all(k in parsed for k in required_keys):
-                    return parsed
-            except Exception as e:
-                logger.error(f"Gemini evaluate_response API call failed: {e}")
+        # Intelligent deterministic heuristic evaluator
+        return self._heuristic_evaluation(question_text, answer_text, role, difficulty, category)
 
-        # Heuristic fallback evaluator
-        return self._heuristic_evaluation(question_text, answer_text, role, difficulty)
-
-    def _heuristic_evaluation(self, question: str, answer: str, role: str, difficulty: str) -> Dict[str, Any]:
-        """Intelligent heuristic evaluator calculating scores from content depth, structure, and vocabulary."""
-        words = answer.strip().split()
+    def _heuristic_evaluation(
+        self,
+        question: str,
+        answer: str,
+        role: str,
+        difficulty: str,
+        category: str = "Technical"
+    ) -> Dict[str, Any]:
+        """
+        Deterministic heuristic evaluator that detects wrong, evasive, or off-topic answers
+        and awards honest low scores with constructive corrections instead of random praise.
+        """
+        clean_answer = answer.strip().lower()
+        words = clean_answer.split()
         word_count = len(words)
 
-        if word_count < 10:
+        # 1. Detect evasive / admission of ignorance
+        evasive_phrases = [
+            "don't know", "dont know", "no idea", "not sure", "skip", "pass", "idk",
+            "have no clue", "cannot answer", "can't answer", "never heard", "no clue"
+        ]
+        is_evasive = any(p in clean_answer for p in evasive_phrases)
+
+        # 2. Extract core question tokens (excluding common stopwords)
+        stopwords = {
+            "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "of", "with",
+            "explain", "what", "how", "why", "when", "is", "are", "difference", "between",
+            "would", "you", "does", "do", "tell", "about", "describe", "your"
+        }
+        q_tokens = [w.strip("?,.:;\"'") for w in question.lower().split() if len(w) > 3 and w not in stopwords]
+        overlap_count = sum(1 for token in q_tokens if token in clean_answer)
+        overlap_ratio = overlap_count / max(1, len(q_tokens))
+
+        # Look up ideal reference from question repository
+        matching_q = None
+        for q in QUESTION_BANK:
+            if q["question_text"].strip().lower() == question.strip().lower():
+                matching_q = q
+                break
+
+        ideal_ref = matching_q.get("ideal_answer") if matching_q else f"A structured response covering the core principles, architecture, and practical trade-offs of {question}."
+        expected_points = matching_q.get("expected_key_points", [f"Core fundamentals of {category}", "Real-world trade-offs"]) if matching_q else []
+
+        # Case A: Evasive / Empty / Extremely brief (< 6 words)
+        if is_evasive or word_count < 6:
             return {
-                "technical_score": 4.0,
-                "communication_score": 4.5,
-                "confidence_score": 4.0,
-                "clarity_score": 5.0,
-                "overall_score": 4.3,
-                "strengths": ["Answered promptly"],
+                "is_correct": False,
+                "accuracy_level": "Incorrect",
+                "technical_score": 1.5,
+                "communication_score": 3.0,
+                "confidence_score": 2.0,
+                "clarity_score": 3.0,
+                "overall_score": 2.1,
+                "feedback_summary": "The candidate was unable to provide a substantive technical answer to the question asked.",
+                "strengths": ["Answered promptly without stalling."],
                 "weaknesses": [
-                    "Response is too brief to demonstrate comprehensive domain knowledge",
-                    "Missing detailed explanation or concrete architectural context"
+                    "Did not provide an answer demonstrating understanding of the required concept.",
+                    f"Missed core principles: {', '.join(expected_points[:2]) if expected_points else 'domain fundamentals'}."
                 ],
+                "corrections_and_misconceptions": [
+                    "Admission of lack of knowledge or answer was too brief to evaluate domain competency."
+                ],
+                "ideal_answer": ideal_ref,
                 "suggestions": [
-                    "Elaborate on the 'why' behind your decision rather than just giving a short definition",
-                    "Give a concrete example from a past project or coursework to illustrate your point"
+                    "Review this topic's fundamentals before your next mock session.",
+                    "If unsure during an interview, try reasoning aloud from first principles rather than passing."
                 ]
             }
 
-        # Calculate score metrics based on length, depth, and structured keywords
-        clarity_bonus = 1.0 if any(punct in answer for punct in [".", ",", ";", ":"]) else 0.0
-        structure_keywords = ["because", "firstly", "specifically", "for example", "trade-off", "architecture", "result", "performance"]
-        matched_keywords = sum(1 for kw in structure_keywords if kw.lower() in answer.lower())
+        # Case B: Off-topic / Low concept overlap (< 10% keyword match)
+        if overlap_count == 0 and word_count > 10 and category not in ["HR", "Behavioral"]:
+            return {
+                "is_correct": False,
+                "accuracy_level": "Irrelevant",
+                "technical_score": 2.5,
+                "communication_score": 4.0,
+                "confidence_score": 3.0,
+                "clarity_score": 3.5,
+                "overall_score": 3.0,
+                "feedback_summary": "The response did not directly address the question or core technical concepts asked.",
+                "strengths": ["Communicated in full sentences with grammatical structure."],
+                "weaknesses": [
+                    "Response is off-topic and fails to discuss the specific topic requested.",
+                    "Missing expected technical vocabulary and direct solution."
+                ],
+                "corrections_and_misconceptions": [
+                    f"Ensure you address the specific question: '{question}'."
+                ],
+                "ideal_answer": ideal_ref,
+                "suggestions": [
+                    "Pause for 5-10 seconds before speaking to structure your answer around the interviewer's exact question.",
+                    "Lead with a direct one-sentence definition before expanding into details."
+                ]
+            }
 
-        base_score = min(8.8, 5.5 + (word_count / 35.0) + (matched_keywords * 0.4) + clarity_bonus)
-        base_score = round(min(9.6, max(5.0, base_score)), 1)
+        # Case C: Partially correct (some overlap, moderate depth)
+        if overlap_ratio < 0.35 or word_count < 25:
+            return {
+                "is_correct": False,
+                "accuracy_level": "Partially Correct",
+                "technical_score": 5.2,
+                "communication_score": 6.0,
+                "confidence_score": 5.5,
+                "clarity_score": 6.0,
+                "overall_score": 5.7,
+                "feedback_summary": "The answer touched upon some relevant keywords but lacked technical depth and thoroughness.",
+                "strengths": [
+                    "Identified some relevant concepts related to the question.",
+                    "Maintained understandable communication."
+                ],
+                "weaknesses": [
+                    "Answer is relatively brief and misses deeper architectural or algorithmic considerations.",
+                    f"Could elaborate on: {', '.join(expected_points[:2]) if expected_points else 'trade-offs and edge cases'}."
+                ],
+                "corrections_and_misconceptions": [
+                    "Ensure you substantiate conceptual definitions with concrete mechanisms and operational details."
+                ],
+                "ideal_answer": ideal_ref,
+                "suggestions": [
+                    "Structure your answers into 3 parts: Concept Definition -> How it Works Under the Hood -> Concrete Real-World Example."
+                ]
+            }
 
-        tech_score = round(min(9.5, base_score + 0.2), 1)
-        comm_score = round(min(9.8, base_score + 0.4 if word_count > 40 else base_score - 0.3), 1)
-        conf_score = round(min(9.2, base_score + 0.1), 1)
-        clarity_score = round(min(9.5, base_score + 0.3), 1)
-        overall_score = round((tech_score + comm_score + conf_score + clarity_score) / 4.0, 1)
+        # Case D: Substantive and accurate answer
+        clarity_bonus = 0.5 if any(p in answer for p in [".", ",", ";"]) else 0.0
+        structure_kws = ["because", "specifically", "for example", "trade-off", "performance", "architecture", "result", "in order to"]
+        matched_struct = sum(1 for kw in structure_kws if kw in clean_answer)
+        depth_score = min(9.2, 6.5 + (word_count / 40.0) + (matched_struct * 0.3) + clarity_bonus)
+
+        tech_score = round(min(9.5, depth_score), 1)
+        comm_score = round(min(9.6, depth_score + 0.2), 1)
+        conf_score = round(min(9.2, depth_score - 0.1), 1)
+        clarity_score = round(min(9.5, depth_score + 0.1), 1)
+        overall = round((tech_score + comm_score + conf_score + clarity_score) / 4.0, 1)
 
         return {
+            "is_correct": True,
+            "accuracy_level": "Accurate",
             "technical_score": tech_score,
             "communication_score": comm_score,
             "confidence_score": conf_score,
             "clarity_score": clarity_score,
-            "overall_score": overall_score,
+            "overall_score": overall,
+            "feedback_summary": f"Solid, knowledgeable response demonstrating clear understanding of {category}.",
             "strengths": [
-                f"Demonstrated good conceptual grasp of {role} practices",
-                "Communicated ideas with clear progression and professional terminology",
-                "Highlighted practical application relevant to the question"
+                "Demonstrated accurate conceptual understanding of the requested topic.",
+                "Used appropriate technical terminology and structured explanation.",
+                "Connected concepts to practical implementation considerations."
             ],
             "weaknesses": [
-                "Could provide deeper quantitative metrics (e.g. latency, throughput, percentages)",
-                "Consider discussing alternative approaches or trade-offs before settling on your chosen solution"
+                "Could provide deeper quantitative metrics (e.g. latency, throughput, scale limits).",
+                "Consider discussing alternative approaches or trade-offs before settling on your chosen solution."
             ],
+            "corrections_and_misconceptions": [],
+            "ideal_answer": ideal_ref,
             "suggestions": [
-                "Structure technical answers with: Concept Definition -> Architecture / Trade-offs -> Concrete Project Example",
-                "Anticipate follow-up interviewer questions by proactively explaining how you would monitor or scale the solution"
+                "Highlight scalability trade-offs to push your answer into the Senior/Principal hire rating.",
+                "Anticipate follow-up questions by proactively mentioning how you would monitor or test the solution."
             ]
         }
+
+    def evaluate_resume_ats(self, resume_text: str, target_role: str = "Software Engineer") -> Dict[str, Any]:
+        """
+        State-of-the-art ATS Resume Evaluator using Gemini 1.5.
+        Extracts skills, identifies missing critical keywords, computes an honest ATS score,
+        and generates targeted interview questions based on the candidate's real experience.
+        """
+        prompt = f"""You are a Principal Technical Recruiter and Applicant Tracking System (ATS) Parsing Engine.
+Analyze the following resume against industry hiring standards for the target role: '{target_role}'.
+
+Resume Text:
+\"\"\"{resume_text[:12000]}\"\"\"
+
+Task:
+Perform a comprehensive ATS parsing and candidate qualification analysis:
+1. `ats_score` (0.0 to 100.0 float): Honest compatibility score based on standard ATS parsers (Workday, Greenhouse, Lever).
+   - Penalize missing standard headings, lack of numbers/metrics, low keyword density, or confusing formatting.
+   - Reward clear experience progression, strong action verbs, and quantifiable impact (e.g., 'reduced latency by 35%').
+2. `parsed_skills`: List of detected programming languages, frameworks, cloud tools, databases, and methodologies.
+3. `missing_critical_keywords`: Crucial high-demand technologies or concepts for '{target_role}' that are completely missing from the resume.
+4. `strengths`: 3 concrete aspects that make this resume competitive.
+5. `weaknesses`: 3 specific ATS flaws, formatting risks, or weak phrasing.
+6. `suggestions`: 3 actionable improvements.
+7. `generated_questions`: 5 highly specific interview questions rooted directly in the candidate's actual projects and technologies.
+
+Return ONLY a valid JSON object matching this schema:
+{{
+  "ats_score": 82.5,
+  "formatting_score": 85.0,
+  "keyword_score": 80.0,
+  "impact_score": 78.0,
+  "candidate_name": "Extracted Name or null",
+  "contact_email": "Extracted email or null",
+  "detected_role": "{target_role}",
+  "parsed_skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "Redis"],
+  "missing_critical_keywords": ["Kubernetes", "CI/CD", "AWS Lambda"],
+  "strengths": [
+    "Clear work experience and measurable metrics included",
+    "Strong technical skills match for backend development"
+  ],
+  "weaknesses": [
+    "Lacks cloud infrastructure certifications",
+    "Some bullet points lack quantifiable business metrics"
+  ],
+  "suggestions": [
+    "Add numbers and percentages to every achievement bullet point",
+    "Group technical skills into Languages, Frameworks, Databases, and Cloud"
+  ],
+  "generated_questions": [
+    "Walk me through the system architecture of the FastAPI project mentioned in your experience.",
+    "How did you implement Redis caching to achieve the latency reduction stated on your resume?",
+    "Tell me about a challenging distributed bug you solved during your software engineering work.",
+    "How do you design database schemas to maintain performance under high concurrent writes?",
+    "If you were rebuilding the primary project on your resume today, what technical decisions would you change?"
+  ]
+}}
+"""
+        parsed = self._generate_json(prompt, temperature=0.3)
+        if parsed and "ats_score" in parsed and "parsed_skills" in parsed:
+            try:
+                parsed["ats_score"] = float(parsed["ats_score"])
+            except (TypeError, ValueError):
+                parsed["ats_score"] = 75.0
+            parsed["ats_score"] = float(min(100.0, max(20.0, parsed["ats_score"])))
+            return parsed
+
+        # Fallback to enhanced heuristic evaluation
+        from app.services.resume_service import resume_service
+        return resume_service.heuristic_analyze(resume_text, target_role)
+
+    def analyze_resume(self, resume_text: str, role_hint: str = "Software Engineer") -> Optional[Dict[str, Any]]:
+        """Backwards-compatible alias for resume analysis."""
+        return self.evaluate_resume_ats(resume_text, target_role=role_hint)
 
 
 gemini_service = GeminiService()

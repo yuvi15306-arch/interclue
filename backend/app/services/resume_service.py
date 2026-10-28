@@ -1,9 +1,8 @@
 import io
 import re
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import pypdf
-from app.services.gemini_service import gemini_service
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +12,17 @@ COMMON_SKILLS = [
     "Kubernetes", "AWS", "GCP", "Azure", "Git", "GitHub", "CI/CD", "GraphQL", "REST API",
     "Java", "Spring Boot", "C++", "C#", "Go", "Rust", "HTML5", "CSS3", "Tailwind CSS",
     "Next.js", "Redux", "Zustand", "Linux", "Terraform", "Pandas", "NumPy", "Scikit-Learn",
-    "PyTorch", "TensorFlow", "Figma", "Jira", "Agile", "Microservices"
+    "PyTorch", "TensorFlow", "Figma", "Jira", "Agile", "Microservices", "Kafka", "RabbitMQ",
+    "Elasticsearch", "Nginx", "Linux", "CI/CD", "GitHub Actions", "pytest", "Jest"
 ]
+
+ROLE_KEYWORD_REQUIREMENTS = {
+    "Backend Developer": ["FastAPI", "PostgreSQL", "Redis", "Docker", "REST API", "Microservices", "CI/CD", "SQL", "AWS"],
+    "Frontend Developer": ["React", "TypeScript", "JavaScript", "CSS3", "HTML5", "Redux", "Next.js", "Tailwind CSS", "Git"],
+    "Full Stack Developer": ["React", "TypeScript", "Node.js", "PostgreSQL", "Docker", "REST API", "Git", "AWS", "Redis"],
+    "Python Developer": ["Python", "FastAPI", "Django", "SQL", "Docker", "Git", "pytest", "PostgreSQL", "Redis"],
+    "Java Developer": ["Java", "Spring Boot", "SQL", "Microservices", "Docker", "Maven", "PostgreSQL", "Git"],
+}
 
 
 class ResumeService:
@@ -32,33 +40,39 @@ class ResumeService:
             return ""
 
     def analyze_resume_text(self, text: str, role_hint: str = "Software Engineer") -> Dict[str, Any]:
-        gemini_result = gemini_service.analyze_resume(text, role_hint=role_hint)
-        heuristic = self._heuristic_analyze(text, role_hint)
-        if not gemini_result:
-            heuristic["engine"] = "heuristic"
-            return heuristic
+        """
+        Analyze resume text using Gemini 1.5 with deep ATS recruitment intelligence.
+        Falls back to comprehensive heuristic analysis if Gemini API is offline.
+        """
+        try:
+            from app.services.gemini_service import gemini_service
+            if gemini_service.client_available:
+                gemini_res = gemini_service.evaluate_resume_ats(text, role_hint)
+                if gemini_res and isinstance(gemini_res, dict) and gemini_res.get("ats_score"):
+                    return gemini_res
+        except Exception as e:
+            logger.warning(f"Gemini resume evaluation failed, using heuristic: {e}")
 
-        merged = {
-            "ats_score": gemini_result.get("ats_score", heuristic["ats_score"]),
-            "contact_email": heuristic.get("contact_email"),
-            "detected_role": gemini_result.get("detected_role") or role_hint,
-            "parsed_skills": gemini_result.get("parsed_skills") or heuristic["parsed_skills"],
-            "strengths": gemini_result.get("strengths") or heuristic["strengths"],
-            "weaknesses": gemini_result.get("weaknesses") or heuristic["weaknesses"],
-            "suggestions": gemini_result.get("suggestions") or heuristic["suggestions"],
-            "generated_questions": gemini_result.get("generated_questions") or heuristic["generated_questions"],
-            "engine": "gemini",
-        }
-        if not merged["parsed_skills"]:
-            merged["parsed_skills"] = heuristic["parsed_skills"]
-        return merged
+        return self.heuristic_analyze(text, role_hint)
 
     def _heuristic_analyze(self, text: str, role_hint: str = "Software Engineer") -> Dict[str, Any]:
+        return self.heuristic_analyze(text, role_hint)
+
+    def heuristic_analyze(self, text: str, role_hint: str = "Software Engineer") -> Dict[str, Any]:
+        """Deep, deterministic heuristic ATS analysis engine."""
         text_lower = text.lower()
 
-        # 1. Detect candidate email
+        # 1. Detect candidate email and name
         email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
         contact_email = email_match.group(0) if email_match else None
+
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        candidate_name = None
+        for line in lines[:3]:
+            # Name heuristics: 2-3 words, no symbols
+            if len(line.split()) in [2, 3] and "@" not in line and not any(char.isdigit() for char in line):
+                candidate_name = line
+                break
 
         # 2. Extract detected skills
         detected_skills = []
@@ -67,69 +81,87 @@ class ResumeService:
             if re.search(pattern, text_lower):
                 detected_skills.append(skill)
 
-        # 3. Detect standard sections
-        has_experience = any(k in text_lower for k in ["experience", "employment", "work history"])
-        has_education = any(k in text_lower for k in ["education", "university", "college", "degree", "bachelor", "master"])
-        has_skills = any(k in text_lower for k in ["skills", "technologies", "tech stack", "competencies"])
-        has_projects = any(k in text_lower for k in ["projects", "personal projects", "portfolio"])
-        has_metrics = bool(re.search(r"\b(\d+[%kK]|\$\d+|\d+\+?\s*(users|clients|ms|requests|latency))\b", text))
-        has_github_or_linkedin = "github.com" in text_lower or "linkedin.com" in text_lower
+        # 3. Detect missing critical keywords based on role
+        expected_role_skills = ROLE_KEYWORD_REQUIREMENTS.get(role_hint, ROLE_KEYWORD_REQUIREMENTS["Full Stack Developer"])
+        missing_critical = [s for s in expected_role_skills if s.lower() not in text_lower]
 
-        # 4. Calculate ATS Score (0 - 100)
-        ats_score = 50.0  # base
+        # 4. Standard section presence checks
+        has_experience = any(k in text_lower for k in ["experience", "employment", "work history", "work experience"])
+        has_education = any(k in text_lower for k in ["education", "university", "college", "degree", "bachelor", "master", "b.s.", "b.tech"])
+        has_skills = any(k in text_lower for k in ["skills", "technologies", "tech stack", "technical proficiencies"])
+        has_projects = any(k in text_lower for k in ["projects", "personal projects", "portfolio", "key projects"])
+        has_metrics = bool(re.search(r"\b(\d+[%kK]|\$\d+|\d+\+?\s*(users|clients|ms|requests|latency|queries|rps))\b", text))
+        has_links = "github.com" in text_lower or "linkedin.com" in text_lower
+
+        # 5. Calculate ATS Score breakdown
+        formatting_score = 70.0
+        keyword_score = 50.0
+        impact_score = 50.0
+
         strengths = []
         weaknesses = []
         suggestions = []
 
         if has_experience:
-            ats_score += 10.0
-            strengths.append("Clear work experience and employment timeline included")
+            formatting_score += 15.0
+            strengths.append("Standard 'Experience' section clearly organized chronologically")
         else:
-            ats_score -= 8.0
-            weaknesses.append("Missing distinct 'Experience' section heading")
-            suggestions.append("Add a designated Experience section formatted chronologically")
+            weaknesses.append("Missing distinct 'Experience' section heading for ATS parsers")
+            suggestions.append("Add a designated 'Work Experience' section with dates and job titles")
 
         if has_education:
-            ats_score += 8.0
-            strengths.append("Verified academic background and degree credentials")
+            formatting_score += 10.0
+            strengths.append("Academic credentials and educational background recognized")
         else:
-            weaknesses.append("Education section not explicitly identified")
+            weaknesses.append("Education section not clearly identified by ATS parser")
 
-        if has_skills and len(detected_skills) >= 5:
-            ats_score += 12.0
-            strengths.append(f"Strong technical skills section with {len(detected_skills)} high-demand keywords")
+        if has_skills:
+            formatting_score += 5.0
+
+        # Keyword density scoring
+        skill_count = len(detected_skills)
+        if skill_count >= 8:
+            keyword_score = min(96.0, 70.0 + (skill_count * 2.5))
+            strengths.append(f"High ATS keyword density ({skill_count} relevant engineering technologies detected)")
+        elif skill_count >= 4:
+            keyword_score = 65.0
         else:
-            ats_score -= 6.0
-            weaknesses.append("Skill density is low or lacks keyword variety")
-            suggestions.append("Group skills into categories (e.g. Languages, Frameworks, Cloud, Databases)")
+            keyword_score = 40.0
+            weaknesses.append("Low keyword density: fewer than 5 standard industry skills found")
+            suggestions.append(f"Incorporate missing core skills for {role_hint}: {', '.join(missing_critical[:4])}")
 
-        if has_projects:
-            ats_score += 8.0
-            strengths.append("Showcases hands-on projects demonstrating practical implementation")
-
+        # Impact and metrics scoring
         if has_metrics:
-            ats_score += 8.0
-            strengths.append("Quantifiable business metrics and impact percentages found")
+            impact_score = 85.0
+            strengths.append("Quantifiable metrics and business impact found (percentages, scale, latency)")
         else:
+            impact_score = 45.0
             weaknesses.append("Lacks quantifiable impact metrics (e.g., 'improved performance by 35%')")
-            suggestions.append("Incorporate numbers, percentages, and performance results in each bullet point")
+            suggestions.append("Structure each bullet point using the Google XYZ formula: 'Accomplished [X] measured by [Y] by doing [Z]'")
 
-        if has_github_or_linkedin:
-            ats_score += 4.0
+        if has_links:
+            formatting_score = min(98.0, formatting_score + 5.0)
             strengths.append("Contains professional web presence links (GitHub / LinkedIn)")
         else:
-            suggestions.append("Include active GitHub and LinkedIn profile links in header")
+            suggestions.append("Include clickable GitHub and LinkedIn profile links in the header")
 
-        ats_score = round(min(98.0, max(38.0, ats_score)), 1)
+        # Weighted holistic ATS score
+        ats_score = (formatting_score * 0.3) + (keyword_score * 0.4) + (impact_score * 0.3)
+        ats_score = round(min(98.0, max(30.0, ats_score)), 1)
 
-        # 5. Generate tailored questions based directly on the resume
+        # 6. Generate tailored interview questions based directly on the resume
         generated_questions = self._generate_resume_questions(detected_skills, text, role_hint)
 
         return {
             "ats_score": ats_score,
+            "formatting_score": round(formatting_score, 1),
+            "keyword_score": round(keyword_score, 1),
+            "impact_score": round(impact_score, 1),
+            "candidate_name": candidate_name,
             "contact_email": contact_email,
             "detected_role": role_hint,
-            "parsed_skills": detected_skills[:12],
+            "parsed_skills": detected_skills[:14],
+            "missing_critical_keywords": missing_critical[:5],
             "strengths": strengths,
             "weaknesses": weaknesses,
             "suggestions": suggestions,
@@ -137,13 +169,13 @@ class ResumeService:
         }
 
     def _generate_resume_questions(self, skills: List[str], resume_text: str, role: str) -> List[str]:
-        skill_sample = ", ".join(skills[:4]) if skills else "modern architecture"
+        skill_sample = ", ".join(skills[:3]) if skills else "your primary tech stack"
         return [
             f"I see you listed {skill_sample} on your resume. Could you describe the most complex technical challenge you solved using these tools?",
-            "Looking at your recent project experience, how did you ensure test coverage, code reliability, and CI/CD automation?",
-            "Can you walk me through the system architecture of the most significant application mentioned in your work history?",
+            f"Looking at your recent project experience, how did you ensure test coverage, code reliability, and CI/CD automation?",
+            f"Can you walk me through the system architecture of the most significant application mentioned in your work history?",
             f"How have you handled performance optimization and scalability bottlenecks in your past {role} work?",
-            "If you were to rebuild the core project listed on your resume from scratch today, what technical decisions would you change and why?"
+            f"If you were to rebuild the core project listed on your resume from scratch today, what technical decisions would you change and why?"
         ]
 
 

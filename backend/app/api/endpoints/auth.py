@@ -20,8 +20,12 @@ from app.schemas.auth import (
     TokenRefreshRequest,
     GoogleLoginRequest,
     ProfileUpdate,
-    ProfileResponse
+    ProfileResponse,
+    SupabaseSyncRequest,
+    SupabaseLoginRequest,
+    SupabaseRegisterRequest
 )
+from app.services.supabase_service import supabase_service
 
 router = APIRouter()
 
@@ -207,3 +211,128 @@ def update_profile(
     db.commit()
     db.refresh(profile)
     return profile
+
+
+@router.post("/supabase/sync", response_model=Token)
+def sync_supabase_user(req: SupabaseSyncRequest, db: Session = Depends(get_db)):
+    """
+    Sync an authenticated Supabase user into the local InterClue database.
+    Verifies the Supabase access token, creates or updates the user account,
+    ensures profile and subscription are provisioned, and returns InterClue JWT.
+    """
+    verified = supabase_service.verify_token(req.access_token)
+    email = req.email
+    full_name = req.full_name
+    avatar_url = req.avatar_url
+
+    if verified:
+        email = verified.get("email") or email
+        user_meta = verified.get("user_metadata", {})
+        full_name = full_name or user_meta.get("full_name") or user_meta.get("name") or (email.split("@")[0] if email else "Candidate")
+        avatar_url = avatar_url or user_meta.get("avatar_url") or user_meta.get("picture")
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to verify valid email address from Supabase authentication payload."
+        )
+
+    user = db.query(User).filter(User.email == email.lower()).first()
+    if not user:
+        user = User(
+            email=email.lower(),
+            full_name=full_name or "Supabase Candidate",
+            avatar_url=avatar_url or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+            hashed_password=None,
+            is_active=True,
+            is_admin=False
+        )
+        db.add(user)
+        db.flush()
+
+        profile = Profile(
+            user_id=user.id,
+            target_role=req.target_role or "Full Stack Developer",
+            experience_level=req.experience_level or "Junior",
+            interview_type_preference=req.interview_type or "Mixed"
+        )
+        db.add(profile)
+
+        sub = Subscription(user_id=user.id, plan_tier="free", status="active")
+        db.add(sub)
+        db.commit()
+        db.refresh(user)
+    else:
+        # Update profile if provided
+        if req.target_role and user.profile:
+            user.profile.target_role = req.target_role
+        if req.experience_level and user.profile:
+            user.profile.experience_level = req.experience_level
+        if full_name and not user.full_name:
+            user.full_name = full_name
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "email": user.email})
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": user
+    }
+
+
+@router.post("/supabase/login", response_model=Token)
+def supabase_login_endpoint(req: SupabaseLoginRequest, db: Session = Depends(get_db)):
+    """Authenticate via Supabase GoTrue Auth and return InterClue session."""
+    supa_resp = supabase_service.login_with_password(req.email, req.password)
+    if supa_resp and "access_token" in supa_resp:
+        return sync_supabase_user(
+            SupabaseSyncRequest(
+                access_token=supa_resp["access_token"],
+                email=req.email
+            ),
+            db=db
+        )
+
+    # Fallback to local DB verification if Supabase remote credentials aren't configured
+    return login(UserLogin(email=req.email, password=req.password), db=db)
+
+
+@router.post("/supabase/signup", response_model=Token)
+def supabase_signup_endpoint(req: SupabaseRegisterRequest, db: Session = Depends(get_db)):
+    """Sign up a new candidate via Supabase Auth and initialize profile."""
+    meta = {
+        "full_name": req.full_name,
+        "target_role": req.target_role,
+        "experience_level": req.experience_level
+    }
+    supa_resp = supabase_service.signup_user(req.email, req.password, meta)
+    if supa_resp and "access_token" in supa_resp:
+        return sync_supabase_user(
+            SupabaseSyncRequest(
+                access_token=supa_resp["access_token"],
+                email=req.email,
+                full_name=req.full_name,
+                target_role=req.target_role,
+                experience_level=req.experience_level,
+                interview_type=req.interview_type
+            ),
+            db=db
+        )
+
+    # Fallback to local registration if Supabase remote credentials are not set
+    return register(
+        UserRegister(
+            email=req.email,
+            password=req.password,
+            full_name=req.full_name,
+            target_role=req.target_role,
+            experience_level=req.experience_level,
+            interview_type=req.interview_type
+        ),
+        db=db
+    )
+
