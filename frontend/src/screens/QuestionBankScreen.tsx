@@ -20,68 +20,7 @@ interface QuestionBankScreenProps {
   onPracticeQuestion: (qText: string) => void;
 }
 
-const INITIAL_QUESTIONS: QuestionBankItem[] = [
-  {
-    id: 1,
-    question_text:
-      'Explain how React Virtual DOM diffing reconciles updates to minimize direct DOM writes compared to manual DOM manipulation.',
-    category: 'Technical',
-    role: 'Frontend Developer',
-    difficulty: 'Junior',
-    source: 'Curated Bank',
-    is_bookmarked: true,
-  },
-  {
-    id: 2,
-    question_text:
-      'How do you design an idempotent RESTful API, and why is idempotency crucial for payment and order processing systems?',
-    category: 'Technical',
-    role: 'Backend Developer',
-    difficulty: 'Mid-Level',
-    source: 'Curated Bank',
-    is_bookmarked: false,
-  },
-  {
-    id: 3,
-    question_text:
-      'Tell me about a time you had a technical disagreement with a team member about system architecture. How did you resolve it?',
-    category: 'Behavioral',
-    role: 'Full Stack Developer',
-    difficulty: 'Junior',
-    source: 'Curated Bank',
-    is_bookmarked: true,
-  },
-  {
-    id: 4,
-    question_text:
-      'Walk me through the system architecture of the most complex web application mentioned in your work history or resume.',
-    category: 'Technical',
-    role: 'Full Stack Developer',
-    difficulty: 'Junior',
-    source: 'Generated from Resume',
-    is_bookmarked: false,
-  },
-  {
-    id: 5,
-    question_text:
-      'How would you handle a production severity-1 outage where response latency suddenly spikes to 10 seconds under peak traffic?',
-    category: 'Situational',
-    role: 'Backend Developer',
-    difficulty: 'Senior',
-    source: 'Curated Bank',
-    is_bookmarked: false,
-  },
-  {
-    id: 6,
-    question_text:
-      'Where do you see yourself in three years, and how does this engineering role align with your long-term career progression?',
-    category: 'HR',
-    role: 'General',
-    difficulty: 'Junior',
-    source: 'Curated Bank',
-    is_bookmarked: false,
-  },
-];
+const INITIAL_QUESTIONS: QuestionBankItem[] = [];
 
 export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracticeQuestion }) => {
   const { user } = useAuthStore();
@@ -92,10 +31,21 @@ export const QuestionBankScreen: React.FC<QuestionBankScreenProps> = ({ onPracti
   const [selectedCat, setSelectedCat] = useState<string>('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingBank, setIsLoadingBank] = useState(false);
-  const [bankMeta, setBankMeta] = useState({ questions_per_category: 55, free_tier_limit: 5, is_pro: false });
+  const [bankMeta, setBankMeta] = useState({ questions_per_category: 100, free_tier_limit: 5, is_pro: false });
 
   const isPro = user?.subscription_tier !== 'free';
-  const categories = ['All', 'Technical', 'Behavioral', 'HR', 'Situational', 'Aptitude', 'Bookmarked'];
+  const categories = [
+    'All',
+    'Programming Fundamentals',
+    'DBMS and SQL',
+    'DSA',
+    'Web Development and APIs',
+    'OS and Networks',
+    'Project',
+    'HR',
+    'Behavioral',
+    'Bookmarked',
+  ];
 
   useEffect(() => {
     const loadBank = async () => {

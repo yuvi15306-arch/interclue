@@ -76,7 +76,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <TouchableOpacity style={styles.streakGoalBadge} onPress={onOpenRoleModal}>
           <Ionicons name="flame" size={18} color="#F59E0B" />
           <View>
-            <Text style={styles.streakValue}>{profile?.current_streak || 4} Days</Text>
+            <Text style={styles.streakValue}>{profile?.current_streak ?? 0} Days</Text>
             <Text style={styles.streakLabel}>Active Streak</Text>
           </View>
         </TouchableOpacity>
@@ -183,31 +183,42 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       <View style={styles.insightsCard}>
         <Text style={styles.sectionHeader}>Personalized Performance Insights</Text>
 
-        <View style={styles.insightBox}>
-          <View style={styles.insightTitleRow}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-            <Text style={styles.strengthTitle}>Key Strength Areas</Text>
-          </View>
-          {INITIAL_DASHBOARD_DATA.strength_areas.map((item, idx) => (
-            <View key={idx} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: colors.success }]} />
-              <Text style={styles.bulletText}>{item}</Text>
+        {INITIAL_DASHBOARD_DATA.strength_areas.length > 0 ? (
+          <>
+            <View style={styles.insightBox}>
+              <View style={styles.insightTitleRow}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                <Text style={styles.strengthTitle}>Key Strength Areas</Text>
+              </View>
+              {INITIAL_DASHBOARD_DATA.strength_areas.map((item, idx) => (
+                <View key={idx} style={styles.bulletRow}>
+                  <View style={[styles.bulletDot, { backgroundColor: colors.success }]} />
+                  <Text style={styles.bulletText}>{item}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
 
-        <View style={[styles.insightBox, { marginTop: 12 }]}>
-          <View style={styles.insightTitleRow}>
-            <Ionicons name="trending-up" size={16} color={colors.warning} />
-            <Text style={styles.weaknessTitle}>Target Improvement Areas</Text>
-          </View>
-          {INITIAL_DASHBOARD_DATA.improvement_areas.map((item, idx) => (
-            <View key={idx} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: colors.warning }]} />
-              <Text style={styles.bulletText}>{item}</Text>
+            <View style={[styles.insightBox, { marginTop: 12 }]}>
+              <View style={styles.insightTitleRow}>
+                <Ionicons name="trending-up" size={16} color={colors.warning} />
+                <Text style={styles.weaknessTitle}>Target Improvement Areas</Text>
+              </View>
+              {INITIAL_DASHBOARD_DATA.improvement_areas.map((item, idx) => (
+                <View key={idx} style={styles.bulletRow}>
+                  <View style={[styles.bulletDot, { backgroundColor: colors.warning }]} />
+                  <Text style={styles.bulletText}>{item}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+          </>
+        ) : (
+          <View style={styles.emptyInsightBox}>
+            <Ionicons name="sparkles-outline" size={20} color={colors.accent} />
+            <Text style={styles.emptyInsightText}>
+              Complete your first interview to generate personalized AI performance insights, diagnostic strengths, and focus areas.
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Quick Access Tiles: Resume Analyzer & Question Bank */}
@@ -232,17 +243,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       {/* Recent Interviews History */}
       <View style={styles.historyCard}>
         <Text style={styles.sectionHeader}>Recent Interviews</Text>
-        {INITIAL_DASHBOARD_DATA.recent_interviews.map((inv) => (
-          <View key={inv.id} style={styles.historyItem}>
-            <View>
-              <Text style={styles.historyRole}>{inv.role}</Text>
-              <Text style={styles.historyMeta}>
-                {inv.interview_type} • {inv.difficulty} • {inv.total_questions} Questions
-              </Text>
+        {INITIAL_DASHBOARD_DATA.recent_interviews.length > 0 ? (
+          INITIAL_DASHBOARD_DATA.recent_interviews.map((inv) => (
+            <View key={inv.id} style={styles.historyItem}>
+              <View>
+                <Text style={styles.historyRole}>{inv.role}</Text>
+                <Text style={styles.historyMeta}>
+                  {inv.interview_type} • {inv.difficulty} • {inv.total_questions} Questions
+                </Text>
+              </View>
+              <ScoreBadge score={inv.overall_score || 8.0} />
             </View>
-            <ScoreBadge score={inv.overall_score || 8.0} />
+          ))
+        ) : (
+          <View style={styles.emptyHistoryBox}>
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.textMuted} />
+            <Text style={styles.emptyHistoryTitle}>No mock interviews taken yet</Text>
+            <Text style={styles.emptyHistorySub}>
+              Start your first session above to receive Gemini 1.5 feedback and track your score progression.
+            </Text>
           </View>
-        ))}
+        )}
       </View>
     </ScrollView>
   );
@@ -562,5 +583,41 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  emptyInsightBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(56, 189, 248, 0.06)',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  emptyInsightText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  emptyHistoryBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  emptyHistoryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 4,
+  },
+  emptyHistorySub: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+    maxWidth: 280,
   },
 });

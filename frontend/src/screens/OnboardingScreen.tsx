@@ -30,6 +30,7 @@ const TYPES: QuestionCategory[] = ['Mixed', 'Technical', 'Behavioral', 'HR', 'Si
 
 export const OnboardingScreen: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(true);
+  const [authProvider, setAuthProvider] = useState<'supabase' | 'standard'>('supabase');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -37,15 +38,23 @@ export const OnboardingScreen: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<ExperienceLevel>('Junior');
   const [selectedType, setSelectedType] = useState<QuestionCategory>('Mixed');
 
-  const { login, register, demoLogin, isLoading, error } = useAuthStore();
+  const { login, register, supabaseLogin, supabaseSignup, demoLogin, isLoading, error } = useAuthStore();
 
   const handleSubmit = async () => {
     if (isSignUp) {
       if (!email || !password || !fullName) return;
-      await register(email, password, fullName, selectedRole, selectedLevel, selectedType);
+      if (authProvider === 'supabase') {
+        await supabaseSignup(email, password, fullName, selectedRole, selectedLevel, selectedType);
+      } else {
+        await register(email, password, fullName, selectedRole, selectedLevel, selectedType);
+      }
     } else {
       if (!email || !password) return;
-      await login(email, password);
+      if (authProvider === 'supabase') {
+        await supabaseLogin(email, password);
+      } else {
+        await login(email, password);
+      }
     }
   };
 
@@ -170,13 +179,41 @@ export const OnboardingScreen: React.FC = () => {
           </>
         )}
 
+        {/* Auth Provider Toggle */}
+        <View style={styles.providerSelector}>
+          <TouchableOpacity
+            style={[styles.providerToggleBtn, authProvider === 'supabase' && styles.providerToggleBtnActive]}
+            onPress={() => setAuthProvider('supabase')}
+          >
+            <Ionicons name="shield-checkmark" size={14} color={authProvider === 'supabase' ? colors.accent : colors.textMuted} />
+            <Text style={[styles.providerToggleText, authProvider === 'supabase' && styles.providerToggleTextActive]}>
+              Supabase Auth
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.providerToggleBtn, authProvider === 'standard' && styles.providerToggleBtnActive]}
+            onPress={() => setAuthProvider('standard')}
+          >
+            <Ionicons name="mail-outline" size={14} color={authProvider === 'standard' ? colors.accent : colors.textMuted} />
+            <Text style={[styles.providerToggleText, authProvider === 'standard' && styles.providerToggleTextActive]}>
+              Direct Auth
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Submit Button */}
         <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitBtnText}>
-              {isSignUp ? 'Start Free Interview Prep' : 'Sign In to InterClue'}
+              {isSignUp
+                ? authProvider === 'supabase'
+                  ? 'Sign Up with Supabase'
+                  : 'Start Free Interview Prep'
+                : authProvider === 'supabase'
+                ? 'Sign In with Supabase'
+                : 'Sign In to InterClue'}
             </Text>
           )}
         </TouchableOpacity>
@@ -356,6 +393,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   levelPillTextActive: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  providerSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 12,
+  },
+  providerToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  providerToggleBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderColor: colors.accent,
+  },
+  providerToggleText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  providerToggleTextActive: {
     color: colors.accent,
     fontWeight: '700',
   },

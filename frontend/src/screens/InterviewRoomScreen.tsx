@@ -315,22 +315,39 @@ export const InterviewRoomScreen: React.FC<InterviewRoomScreenProps> = ({
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Top Session Bar */}
       <View style={styles.sessionHeader}>
-        <TouchableOpacity style={styles.exitBtn} onPress={onExit}>
-          <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
-          <Text style={styles.exitText}>Back</Text>
-        </TouchableOpacity>
-
-        <View style={styles.timerBadge}>
-          <Ionicons name="time-outline" size={16} color={secondsRemaining < 30 ? colors.danger : colors.accent} />
-          <Text style={[styles.timerText, secondsRemaining < 30 && { color: colors.danger }]}>
-            {formatTimer(secondsRemaining)}
-          </Text>
+        <View style={styles.sessionLeft}>
+          <View style={styles.progressPill}>
+            <Text style={styles.progressText}>
+              Q {currentQIndex} / {totalQ}
+            </Text>
+          </View>
+          <View style={styles.timerBadge}>
+            <Ionicons name="time-outline" size={16} color={secondsRemaining < 30 ? colors.danger : colors.accent} />
+            <Text style={[styles.timerText, secondsRemaining < 30 && { color: colors.danger }]}>
+              {formatTimer(secondsRemaining)}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.progressPill}>
-          <Text style={styles.progressText}>
-            Q {currentQIndex} / {totalQ}
-          </Text>
+        <View style={styles.sessionRight}>
+          <TouchableOpacity
+            style={styles.refreshTopBtn}
+            onPress={handleRefreshQuestion}
+            disabled={isRefreshingQuestion || isEvaluating}
+            accessibilityLabel="Refresh question"
+          >
+            {isRefreshingQuestion ? (
+              <ActivityIndicator color={colors.accent} size="small" />
+            ) : (
+              <Ionicons name="refresh" size={15} color={colors.accent} />
+            )}
+            <Text style={styles.refreshTopText}>Refresh</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.exitBtn} onPress={onExit} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={16} color={colors.textSecondary} />
+            <Text style={styles.exitText}>Back</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -556,10 +573,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  sessionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sessionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+  },
+  refreshTopText: {
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: '600',
+  },
   exitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   exitText: {
     fontSize: 12,

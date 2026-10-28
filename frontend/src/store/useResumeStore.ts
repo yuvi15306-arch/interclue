@@ -13,7 +13,7 @@ interface ResumeState {
 }
 
 export const useResumeStore = create<ResumeState>((set) => ({
-  resume: INITIAL_RESUME_DATA,
+  resume: null,
   isAnalyzing: false,
   error: null,
 

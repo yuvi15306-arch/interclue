@@ -10,15 +10,20 @@ from app.models.subscription import Subscription
 from app.services.gemini_service import gemini_service, resolve_question_category
 from app.core.question_repository import (
     QUESTION_BANK,
-    CATEGORIES,
+    CATEGORIES as REPO_CATEGORIES,
     get_questions,
     get_category_counts,
     get_question_by_id
 )
+from app.data.question_bank_data import (
+    CATEGORY_QUESTION_BANK,
+    QUESTIONS_PER_CATEGORY as LEGACY_PER_CATEGORY,
+    list_category_questions
+)
 
 router = APIRouter()
 
-BANK_CATEGORIES = [
+BANK_CATEGORIES_8 = [
     "Programming Fundamentals",
     "DBMS and SQL",
     "DSA",
@@ -28,6 +33,8 @@ BANK_CATEGORIES = [
     "HR",
     "Behavioral"
 ]
+
+LEGACY_CATEGORIES = ["Technical", "Behavioral", "HR", "Aptitude", "Situational"]
 
 CATEGORY_MAP = {
     "programming": "Programming Fundamentals",
@@ -55,8 +62,6 @@ CATEGORY_MAP = {
     "system architecture": "Project",
     "hr": "HR",
     "behavioral": "Behavioral",
-    "situational": "Behavioral",
-    "technical": "Programming Fundamentals"
 }
 
 
@@ -66,43 +71,109 @@ def _plan_tier(db: Session, user: User) -> str:
 
 
 @router.get("/")
-def get_question_bank_items(
+def get_question_bank(
+    role: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     difficulty: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
+    limit: Optional[int] = Query(None),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve questions from the curated 800-question repository across 8 categories:
-    Programming Fundamentals, DBMS and SQL, DSA, Web Development and APIs,
-    OS and Networks, Project, HR, and Behavioral.
+    Retrieve questions across categories.
+    Supports both the 8 curated tracks (100 questions each) and legacy interview categories.
     """
-    user_role = current_user.profile.target_role if current_user.profile else "Full Stack Developer"
+    user_role = role or (current_user.profile.target_role if current_user.profile else "Full Stack Developer")
     user_diff = difficulty or (current_user.profile.experience_level if current_user.profile else "Junior")
     plan_tier = _plan_tier(db, current_user)
     is_pro = plan_tier != "free"
-    free_limit = getattr(settings, "FREE_QUESTION_BANK_PER_CATEGORY", 10)
+    free_limit = settings.FREE_QUESTION_BANK_PER_CATEGORY
 
-    # Map category to canonical name
+    # Check if querying legacy 5-category set (Technical, Aptitude, Situational, or general empty listing)
+    is_legacy_query = (
+        (category in ["Technical", "Aptitude", "Situational"]) or
+        (not category and limit is None)
+    )
+
+    if is_legacy_query:
+        cats = [category] if category and category in CATEGORY_QUESTION_BANK else LEGACY_CATEGORIES
+
+        latest_resume = db.query(Resume).filter(Resume.user_id == current_user.id).order_by(Resume.created_at.desc()).first()
+        resume_questions = latest_resume.generated_questions if latest_resume and latest_resume.generated_questions else []
+
+        results = []
+        id_counter = 100
+
+        for cat in cats:
+            visible_index = 0
+            for text in list_category_questions(cat, user_role):
+                if search and search.lower() not in text.lower():
+                    continue
+                unlocked = is_pro or visible_index < free_limit
+                results.append({
+                    "id": id_counter,
+                    "question_text": text if unlocked else "Upgrade to InterClue Pro to unlock this question.",
+                    "full_question_text": text if unlocked else None,
+                    "category": cat,
+                    "role": user_role,
+                    "difficulty": user_diff,
+                    "source": "Curated Bank (55 per category)",
+                    "is_bookmarked": visible_index == 0,
+                    "is_locked": not unlocked,
+                })
+                id_counter += 1
+                visible_index += 1
+
+        if is_pro:
+            for idx, text in enumerate(resume_questions):
+                if category and category.lower() != "technical":
+                    continue
+                if search and search.lower() not in text.lower():
+                    continue
+                results.append({
+                    "id": id_counter,
+                    "question_text": text,
+                    "full_question_text": text,
+                    "category": "Technical",
+                    "role": user_role,
+                    "difficulty": user_diff,
+                    "source": "Generated from Resume (Gemini)",
+                    "is_bookmarked": False,
+                    "is_locked": False,
+                })
+                id_counter += 1
+
+        return {
+            "role": user_role,
+            "difficulty": user_diff,
+            "total_count": len(results),
+            "questions_per_category": LEGACY_PER_CATEGORY,
+            "free_tier_limit": free_limit,
+            "is_pro": is_pro,
+            "gemini_enabled": gemini_service.client_available,
+            "questions": results,
+        }
+
+    # Query from the curated 800-question repository (100 questions per category)
     normalized_category = None
     if category and category.lower() != "all":
         key = category.lower().strip()
         normalized_category = CATEGORY_MAP.get(key, category)
 
+    page_limit = limit if limit is not None else 100
     result = get_questions(
         category=normalized_category,
         difficulty=difficulty,
         search=search,
-        limit=limit,
+        limit=page_limit,
         offset=offset
     )
 
     formatted_questions = []
     for idx, q in enumerate(result["questions"]):
-        unlocked = is_pro or idx < free_limit
+        unlocked = is_pro or (idx + offset) < free_limit
         formatted_questions.append({
             "id": q["id"],
             "question_text": q["question_text"] if unlocked else "Upgrade to InterClue Pro to unlock this question.",
@@ -112,12 +183,12 @@ def get_question_bank_items(
             "difficulty": q.get("difficulty", user_diff),
             "expected_key_points": q.get("expected_key_points", []) if unlocked else [],
             "source": "Curated Bank (100 per category)",
-            "is_bookmarked": q["id"] in [1, 101, 201, 301],
+            "is_bookmarked": q["id"] in [1, 101, 201, 301, 401, 501, 601, 701],
             "is_locked": not unlocked
         })
 
-    # Include resume questions if available and user is looking at all/project
-    if offset == 0 and (not category or category.lower() in ["all", "project", "technical"]):
+    # Include resume questions if applicable
+    if offset == 0 and (not category or category.lower() in ["all", "project"]):
         latest_resume = db.query(Resume).filter(Resume.user_id == current_user.id).order_by(Resume.created_at.desc()).first()
         if latest_resume and latest_resume.generated_questions:
             for idx, rq in enumerate(latest_resume.generated_questions[:3]):
@@ -138,7 +209,9 @@ def get_question_bank_items(
         "role": user_role,
         "difficulty": user_diff,
         "total_count": result["total_count"],
-        "limit": limit,
+        "questions_per_category": 100,
+        "free_tier_limit": free_limit,
+        "limit": page_limit,
         "offset": offset,
         "category": normalized_category or "All",
         "is_pro": is_pro,
@@ -160,34 +233,30 @@ def get_categories_overview():
                 "count": counts.get(cat, 0),
                 "description": f"Curated collection of {counts.get(cat, 0)} {cat} interview questions"
             }
-            for cat in CATEGORIES
+            for cat in REPO_CATEGORIES
         ]
     }
 
 
 @router.post("/generate-personalized")
 def generate_personalized_question(
-    category: str = "Programming Fundamentals",
+    category: str = "Technical",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     target_role = current_user.profile.target_role if current_user.profile else "Full Stack Developer"
     difficulty = current_user.profile.experience_level if current_user.profile else "Junior"
 
-    # Normalize category
-    norm_cat = CATEGORY_MAP.get(category.lower().strip(), category)
-    locked_category = resolve_question_category("Mixed", requested=norm_cat)
-
     q_data = gemini_service.generate_question(
         role=target_role,
         difficulty=difficulty,
-        category=locked_category,
-        interview_type="Mixed"
+        category=category,
+        interview_type=category
     )
 
     return {
         "question_text": q_data["question_text"],
-        "category": q_data.get("category", locked_category),
+        "category": category,
         "role": target_role,
         "difficulty": difficulty,
         "expected_key_points": q_data.get("expected_key_points", []),

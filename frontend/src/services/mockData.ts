@@ -1,103 +1,35 @@
-import { DashboardData, ResumeData, QuestionBankItem, SubscriptionPlan } from '../types';
+import { DashboardData, ResumeData, SubscriptionPlan } from '../types';
 
 export const INITIAL_DASHBOARD_DATA: DashboardData = {
-  total_interviews: 6,
-  average_score: 8.4,
-  current_streak: 4,
+  total_interviews: 0,
+  average_score: 0.0,
+  current_streak: 0,
   target_role: 'Full Stack Developer',
   weekly_goal: 5,
-  weekly_completed: 3,
-  strength_areas: [
-    'System Design & Microservices Architecture',
-    'Clear problem decomposition and technical clarity',
-    'Structured STAR answers with quantified results',
-  ],
-  improvement_areas: [
-    'Incorporate deeper database indexing & locking tradeoffs',
-    'Elaborate on production latency and SLA metrics',
-    'Maintain steady pacing during high-pressure questions',
-  ],
+  weekly_completed: 0,
+  strength_areas: [],
+  improvement_areas: [],
   weekly_progress: [
-    { day: 'Mon', date: '2026-10-18', interviews_count: 1, avg_score: 7.8 },
-    { day: 'Tue', date: '2026-10-19', interviews_count: 0, avg_score: 0.0 },
-    { day: 'Wed', date: '2026-10-20', interviews_count: 1, avg_score: 8.5 },
-    { day: 'Thu', date: '2026-10-21', interviews_count: 0, avg_score: 0.0 },
-    { day: 'Fri', date: '2026-10-22', interviews_count: 1, avg_score: 8.9 },
-    { day: 'Sat', date: '2026-10-23', interviews_count: 0, avg_score: 0.0 },
-    { day: 'Sun', date: '2026-10-24', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Mon', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Tue', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Wed', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Thu', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Fri', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Sat', date: '', interviews_count: 0, avg_score: 0.0 },
+    { day: 'Sun', date: '', interviews_count: 0, avg_score: 0.0 },
   ],
-  recent_interviews: [
-    {
-      id: 101,
-      role: 'Full Stack Developer',
-      difficulty: 'Junior',
-      interview_type: 'Technical',
-      status: 'completed',
-      overall_score: 8.8,
-      total_questions: 5,
-      created_at: '2026-10-22T14:30:00Z',
-    },
-    {
-      id: 100,
-      role: 'Frontend Developer',
-      difficulty: 'Junior',
-      interview_type: 'Mixed',
-      status: 'completed',
-      overall_score: 8.2,
-      total_questions: 3,
-      created_at: '2026-10-20T10:15:00Z',
-    },
-  ],
+  recent_interviews: [],
   metrics_breakdown: {
-    technical_avg: 8.5,
-    communication_avg: 8.4,
-    confidence_avg: 8.1,
-    clarity_avg: 8.6,
+    technical_avg: 0.0,
+    communication_avg: 0.0,
+    confidence_avg: 0.0,
+    clarity_avg: 0.0,
   },
-  subscription_tier: 'pro_monthly',
-  remaining_daily_interviews: 999,
+  subscription_tier: 'free',
+  remaining_daily_interviews: 3,
 };
 
-export const INITIAL_RESUME_DATA: ResumeData = {
-  id: 1,
-  filename: 'Alex_Rivera_Software_Engineer.pdf',
-  ats_score: 88.5,
-  candidate_name: 'Alex Rivera',
-  contact_email: 'demo@interclue.ai',
-  detected_role: 'Full Stack Developer',
-  parsed_skills: [
-    'React',
-    'React Native',
-    'TypeScript',
-    'Node.js',
-    'FastAPI',
-    'PostgreSQL',
-    'Redis',
-    'Docker',
-    'AWS',
-    'Git',
-  ],
-  strengths: [
-    'Strong ATS keyword match for Full Stack roles',
-    'Quantifiable achievements (40% latency reduction)',
-    'Clear section headers (Experience, Skills, Education)',
-  ],
-  weaknesses: [
-    'Missing cloud architecture certifications',
-    'Could add more automated testing tools (Jest, Cypress)',
-  ],
-  suggestions: [
-    'Group technical skills into Languages, Frameworks, and Cloud Infrastructure',
-    'Include direct links to live deployed demo apps',
-  ],
-  generated_questions: [
-    'You mentioned improving API response times by 40% with Redis. Walk me through your cache invalidation strategy.',
-    'How do you manage cross-platform state between React web and React Native mobile applications?',
-    'What database indexing strategies do you employ when PostgreSQL queries encounter sequential scan bottlenecks?',
-    'Explain how you structured your FastAPI microservices with JWT refresh token rotation.',
-  ],
-  created_at: '2026-10-23T18:00:00Z',
-};
+export const INITIAL_RESUME_DATA: ResumeData | null = null;
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {

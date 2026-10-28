@@ -29,6 +29,8 @@ export const AnalyticsScreen: React.FC = () => {
     { session: 'S6', score: 8.8 },
   ];
 
+  const hasHistory = INITIAL_DASHBOARD_DATA.total_interviews > 0;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Overview Banner */}
@@ -40,79 +42,93 @@ export const AnalyticsScreen: React.FC = () => {
           </View>
           <View style={styles.consistencyPill}>
             <Ionicons name="flame" size={14} color="#F59E0B" />
-            <Text style={styles.consistencyText}>88.5% Consistency</Text>
+            <Text style={styles.consistencyText}>{hasHistory ? '88.5% Consistency' : 'New Candidate'}</Text>
           </View>
         </View>
       </View>
 
-      {/* Radar Chart */}
-      <RadarChart metrics={INITIAL_DASHBOARD_DATA.metrics_breakdown} />
+      {hasHistory ? (
+        <>
+          {/* Radar Chart */}
+          <RadarChart metrics={INITIAL_DASHBOARD_DATA.metrics_breakdown} />
 
-      {/* Historical Trend Chart */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Score Trajectory (Last 6 Sessions)</Text>
-        <Text style={styles.cardSub}>Steady growth from 7.0 to 8.8 overall</Text>
+          {/* Historical Trend Chart */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Score Trajectory (Last 6 Sessions)</Text>
+            <Text style={styles.cardSub}>Steady growth from 7.0 to 8.8 overall</Text>
 
-        <View style={styles.trendRow}>
-          {trends.map((item, idx) => {
-            const heightPercent = ((item.score - 5.0) / 5.0) * 80;
-            return (
-              <View key={idx} style={styles.trendCol}>
-                <Text style={styles.trendScore}>{item.score.toFixed(1)}</Text>
-                <View style={styles.trendTrack}>
-                  <View style={[styles.trendBar, { height: `${heightPercent}%` }]} />
+            <View style={styles.trendRow}>
+              {trends.map((item, idx) => {
+                const heightPercent = ((item.score - 5.0) / 5.0) * 80;
+                return (
+                  <View key={idx} style={styles.trendCol}>
+                    <Text style={styles.trendScore}>{item.score.toFixed(1)}</Text>
+                    <View style={styles.trendTrack}>
+                      <View style={[styles.trendBar, { height: `${heightPercent}%` }]} />
+                    </View>
+                    <Text style={styles.trendLabel}>{item.session}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Strong Topics */}
+          <View style={styles.card}>
+            <View style={styles.headingRow}>
+              <Ionicons name="ribbon" size={18} color={colors.success} />
+              <Text style={[styles.cardTitle, { color: colors.success }]}>Strongest Topics</Text>
+            </View>
+            <Text style={styles.cardSub}>Areas where you consistently demonstrate senior depth</Text>
+
+            <View style={styles.topicsList}>
+              {strongTopics.map((topic, idx) => (
+                <View key={idx} style={styles.topicItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.topicName}>{topic.name}</Text>
+                    <Text style={styles.topicMeta}>{topic.cat} • {topic.count} responses evaluated</Text>
+                  </View>
+                  <ScoreBadge score={topic.score} size="sm" />
                 </View>
-                <Text style={styles.trendLabel}>{item.session}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Strong Topics */}
-      <View style={styles.card}>
-        <View style={styles.headingRow}>
-          <Ionicons name="ribbon" size={18} color={colors.success} />
-          <Text style={[styles.cardTitle, { color: colors.success }]}>Strongest Topics</Text>
-        </View>
-        <Text style={styles.cardSub}>Areas where you consistently demonstrate senior depth</Text>
-
-        <View style={styles.topicsList}>
-          {strongTopics.map((topic, idx) => (
-            <View key={idx} style={styles.topicItem}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.topicName}>{topic.name}</Text>
-                <Text style={styles.topicMeta}>{topic.cat} • {topic.count} responses evaluated</Text>
-              </View>
-              <ScoreBadge score={topic.score} size="sm" />
+              ))}
             </View>
-          ))}
-        </View>
-      </View>
+          </View>
 
-      {/* Weak Topics */}
-      <View style={styles.card}>
-        <View style={styles.headingRow}>
-          <Ionicons name="trending-up" size={18} color={colors.warning} />
-          <Text style={[styles.cardTitle, { color: colors.warning }]}>Target Improvement Topics</Text>
-        </View>
-        <Text style={styles.cardSub}>Focus your next practice sessions on these key areas</Text>
-
-        <View style={styles.topicsList}>
-          {weakTopics.map((topic, idx) => (
-            <View key={idx} style={styles.weakItem}>
-              <View style={styles.weakHeader}>
-                <Text style={styles.topicName}>{topic.name}</Text>
-                <ScoreBadge score={topic.score} size="sm" />
-              </View>
-              <View style={styles.tipBox}>
-                <Ionicons name="bulb-outline" size={13} color={colors.accent} />
-                <Text style={styles.tipText}>{topic.tip}</Text>
-              </View>
+          {/* Weak Topics */}
+          <View style={styles.card}>
+            <View style={styles.headingRow}>
+              <Ionicons name="trending-up" size={18} color={colors.warning} />
+              <Text style={[styles.cardTitle, { color: colors.warning }]}>Target Improvement Topics</Text>
             </View>
-          ))}
+            <Text style={styles.cardSub}>Focus your next practice sessions on these key areas</Text>
+
+            <View style={styles.topicsList}>
+              {weakTopics.map((topic, idx) => (
+                <View key={idx} style={styles.weakItem}>
+                  <View style={styles.weakHeader}>
+                    <Text style={styles.topicName}>{topic.name}</Text>
+                    <ScoreBadge score={topic.score} size="sm" />
+                  </View>
+                  <View style={styles.tipBox}>
+                    <Ionicons name="bulb-outline" size={13} color={colors.accent} />
+                    <Text style={styles.tipText}>{topic.tip}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </>
+      ) : (
+        <View style={styles.emptyAnalyticsCard}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="analytics-outline" size={36} color={colors.accent} />
+          </View>
+          <Text style={styles.emptyAnalyticsTitle}>No Interview Data Recorded</Text>
+          <Text style={styles.emptyAnalyticsSub}>
+            Complete your first mock interview session to unlock radar analytics, category competency scores, and personalized performance trajectories.
+          </Text>
         </View>
-      </View>
+      )}
     </ScrollView>
   );
 };
@@ -277,5 +293,37 @@ const styles = StyleSheet.create({
     color: colors.accent,
     flex: 1,
     lineHeight: 15,
+  },
+  emptyAnalyticsCard: {
+    backgroundColor: colors.surface,
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyAnalyticsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  emptyAnalyticsSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 300,
   },
 });

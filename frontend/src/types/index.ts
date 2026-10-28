@@ -61,6 +61,11 @@ export interface EvaluationResult {
   confidence_score: number;
   clarity_score: number;
   overall_score: number;
+  is_correct?: boolean;
+  accuracy_level?: string;
+  feedback_summary?: string;
+  corrections_and_misconceptions?: string[];
+  ideal_answer?: string;
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];

@@ -23,11 +23,16 @@ export const EvaluationReportScreen: React.FC<EvaluationReportScreenProps> = ({
   const { latestEvaluation, activeSession } = useInterviewStore();
 
   const isCompleted = latestEvaluation?.is_completed || false;
-  const overall = latestEvaluation?.overall_score || 8.2;
-  const tech = latestEvaluation?.technical_score || 8.0;
-  const comm = latestEvaluation?.communication_score || 8.4;
-  const conf = latestEvaluation?.confidence_score || 7.8;
-  const clar = latestEvaluation?.clarity_score || 8.2;
+  const isCorrect = latestEvaluation?.is_correct !== false;
+  const accuracyLevel = latestEvaluation?.accuracy_level || (isCorrect ? 'Accurate' : 'Incorrect');
+  const overall = latestEvaluation?.overall_score || 7.5;
+  const tech = latestEvaluation?.technical_score || 7.2;
+  const comm = latestEvaluation?.communication_score || 7.8;
+  const conf = latestEvaluation?.confidence_score || 7.4;
+  const clar = latestEvaluation?.clarity_score || 7.6;
+  const feedbackSummary = latestEvaluation?.feedback_summary;
+  const idealAnswer = latestEvaluation?.ideal_answer;
+  const corrections = latestEvaluation?.corrections_and_misconceptions || [];
 
   const strengths = latestEvaluation?.strengths || [
     'Addressed the technical question with structured architectural thinking',
@@ -43,16 +48,48 @@ export const EvaluationReportScreen: React.FC<EvaluationReportScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity style={styles.backRow} onPress={onFinish}>
-        <Ionicons name="arrow-back" size={16} color={colors.textSecondary} />
-        <Text style={styles.backText}>Back to dashboard</Text>
-      </TouchableOpacity>
+      {/* Top Header Row with Right-Aligned Controls */}
+      <View style={styles.topControlRow}>
+        <View style={styles.topTag}>
+          <Ionicons name="sparkles" size={13} color={colors.accent} />
+          <Text style={styles.topTagText}>GEMINI 1.5 PRO EVALUATION</Text>
+        </View>
+
+        <View style={styles.topRightActions}>
+          <TouchableOpacity style={styles.topActionBtn} onPress={onContinue} accessibilityLabel="Refresh / Next">
+            <Ionicons name="refresh" size={15} color={colors.accent} />
+            <Text style={styles.topActionText}>{isCompleted ? 'Review' : 'Continue'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.topActionBtn} onPress={onFinish} accessibilityLabel="Back to Dashboard">
+            <Ionicons name="arrow-back" size={15} color={colors.textSecondary} />
+            <Text style={styles.topActionText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {/* Top Banner */}
       <View style={styles.heroCard}>
-        <View style={styles.aiTag}>
-          <Ionicons name="sparkles" size={13} color={colors.accent} />
-          <Text style={styles.aiTagText}>GEMINI 1.5 PRO EVALUATION</Text>
+        <View style={styles.accuracyRow}>
+          <View
+            style={[
+              styles.accuracyBadge,
+              isCorrect ? styles.accuracyCorrect : styles.accuracyIncorrect,
+            ]}
+          >
+            <Ionicons
+              name={isCorrect ? 'checkmark-circle' : 'alert-circle'}
+              size={14}
+              color={isCorrect ? colors.success : colors.danger}
+            />
+            <Text
+              style={[
+                styles.accuracyText,
+                { color: isCorrect ? colors.success : colors.danger },
+              ]}
+            >
+              {accuracyLevel.toUpperCase()}
+            </Text>
+          </View>
         </View>
 
         <Text style={styles.heroTitle}>Answer Feedback & Scorecard</Text>
@@ -71,10 +108,13 @@ export const EvaluationReportScreen: React.FC<EvaluationReportScreenProps> = ({
                 ? 'Strong Hire Rating 🚀'
                 : overall >= 7.0
                 ? 'Competitive Response 👍'
-                : 'Needs Refinement ⚠️'}
+                : overall >= 5.0
+                ? 'Partially Correct ⚠️'
+                : 'Needs Fundamental Study ❌'}
             </Text>
             <Text style={styles.verdictSub}>
-              Evaluated across technical depth, articulation clarity, and confidence.
+              {feedbackSummary ||
+                'Evaluated strictly across conceptual accuracy, depth, articulation, and trade-offs.'}
             </Text>
           </View>
         </View>
@@ -105,6 +145,37 @@ export const EvaluationReportScreen: React.FC<EvaluationReportScreenProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Corrections & Misconceptions if any */}
+      {corrections.length > 0 && (
+        <View style={[styles.feedbackCard, styles.correctionCard]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="close-circle" size={18} color={colors.danger} />
+            <Text style={[styles.cardTitle, { color: colors.danger }]}>
+              Corrections & Misconceptions
+            </Text>
+          </View>
+          {corrections.map((c: string, idx: number) => (
+            <View key={idx} style={styles.itemRow}>
+              <View style={[styles.dot, { backgroundColor: colors.danger }]} />
+              <Text style={styles.itemText}>{c}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Model Engineering Answer if available */}
+      {idealAnswer && (
+        <View style={[styles.feedbackCard, styles.modelAnswerCard]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="school" size={18} color={colors.accent} />
+            <Text style={[styles.cardTitle, { color: colors.accent }]}>
+              Model Engineering Answer
+            </Text>
+          </View>
+          <Text style={styles.modelAnswerText}>{idealAnswer}</Text>
+        </View>
+      )}
 
       {/* Strengths */}
       <View style={styles.feedbackCard}>
@@ -175,89 +246,132 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  backRow: {
+  topControlRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  topTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 12,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
   },
-  backText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  heroCard: {
-    backgroundColor: colors.surface,
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(37, 99, 235, 0.4)',
-    marginBottom: 16,
-  },
-  aiTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  aiTagText: {
+  topTagText: {
     fontSize: 10,
     fontWeight: '800',
     color: colors.accent,
     letterSpacing: 0.5,
   },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  topActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  accuracyRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  accuracyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  accuracyCorrect: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: colors.success,
+  },
+  accuracyIncorrect: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: colors.danger,
+  },
+  accuracyText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  heroCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
   heroTitle: {
     fontSize: 20,
     fontWeight: '800',
     color: colors.text,
+    letterSpacing: -0.3,
   },
   heroSub: {
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   overallScoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
     backgroundColor: colors.surfaceLight,
     padding: 14,
-    borderRadius: 14,
-    gap: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
   scoreCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderWidth: 2,
+    borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
   },
   scoreLarge: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.accent,
   },
   scoreMax: {
     fontSize: 10,
     color: colors.textMuted,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   verdictCol: {
     flex: 1,
   },
   verdictTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
   },
   verdictSub: {
@@ -268,44 +382,61 @@ const styles = StyleSheet.create({
   },
   dimensionsCard: {
     backgroundColor: colors.surface,
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: colors.text,
     marginBottom: 12,
   },
   dimGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   dimItem: {
+    width: '48%',
+    backgroundColor: colors.surfaceLight,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
   },
   dimLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
-    color: colors.text,
+    color: colors.textSecondary,
+    flex: 1,
   },
   feedbackCard: {
     backgroundColor: colors.surface,
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 14,
+  },
+  correctionCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  modelAnswerCard: {
+    backgroundColor: 'rgba(56, 189, 248, 0.05)',
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+  },
+  modelAnswerText: {
+    fontSize: 12,
+    color: colors.text,
+    lineHeight: 19,
+    marginTop: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -314,13 +445,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 8,
     marginBottom: 8,
   },
   dot: {
@@ -330,9 +461,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   itemText: {
-    fontSize: 13,
-    color: colors.textSecondary,
     flex: 1,
+    fontSize: 12,
+    color: colors.text,
     lineHeight: 18,
   },
   actionRow: {
@@ -342,27 +473,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 15,
-    borderRadius: 14,
     gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
   },
+  continueBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   finishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.success,
-    paddingVertical: 15,
-    borderRadius: 14,
     gap: 8,
-  },
-  continueBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
+    backgroundColor: '#059669',
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
 });

@@ -67,19 +67,30 @@ class GeminiService:
 
     def _parse_json_response(self, text: str) -> Dict[str, Any]:
         clean_text = text.strip()
-        clean_text = re.sub(r"^```json\s*", "", clean_text)
+        clean_text = re.sub(r"^```(?:json)?\s*", "", clean_text)
         clean_text = re.sub(r"\s*```$", "", clean_text)
+        match = re.search(r"(\{.*\})", clean_text, re.DOTALL)
+        if match:
+            clean_text = match.group(1)
         return json.loads(clean_text)
 
     def _generate_json(self, prompt: str, temperature: float = 0.5) -> Optional[Dict[str, Any]]:
         if not self.client_available:
             return None
+        model_name = settings.GEMINI_MODEL
+        if not model_name or "tts" in model_name.lower():
+            model_name = "gemini-1.5-flash"
         try:
-            model = self.genai.GenerativeModel(settings.GEMINI_MODEL)
-            response = model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "application/json", "temperature": temperature},
-            )
+            model = self.genai.GenerativeModel(model_name)
+            try:
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"response_mime_type": "application/json", "temperature": temperature},
+                )
+            except Exception as e:
+                logger.info(f"Retrying Gemini generation without response_mime_type: {e}")
+                response = model.generate_content(prompt)
+
             text = (response.text or "").strip()
             if not text:
                 return None
@@ -119,7 +130,7 @@ Do NOT repeat any of these previous questions:
 Output format MUST be strictly a JSON object:
 {{
     "question_text": "The exact interview question",
-    "category": "{locked_category}",
+    "category": "{category}",
     "expected_key_points": [
         "Key point 1 candidate should address",
         "Key point 2 regarding mechanisms or trade-offs",
@@ -129,7 +140,7 @@ Output format MUST be strictly a JSON object:
 """
         parsed = self._generate_json(prompt, temperature=0.6)
         if parsed and parsed.get("question_text") and parsed.get("expected_key_points"):
-            parsed["category"] = locked_category
+            parsed["category"] = category
             return parsed
 
         # Repository-backed fallback generation
@@ -147,7 +158,7 @@ Output format MUST be strictly a JSON object:
         selected = pool[0] if pool else QUESTION_BANK[0]
         return {
             "question_text": selected["question_text"],
-            "category": selected.get("category", locked_category),
+            "category": category,
             "expected_key_points": selected.get("expected_key_points", [
                 f"Core conceptual foundations of {role}",
                 "Structured architectural reasoning and edge-case handling",
@@ -275,7 +286,8 @@ Return ONLY a JSON object with this exact schema:
         stopwords = {
             "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "of", "with",
             "explain", "what", "how", "why", "when", "is", "are", "difference", "between",
-            "would", "you", "does", "do", "tell", "about", "describe", "your"
+            "would", "you", "does", "do", "tell", "about", "describe", "your", "can", "could",
+            "this", "that", "these", "those", "have", "has", "from"
         }
         q_tokens = [w.strip("?,.:;\"'") for w in question.lower().split() if len(w) > 3 and w not in stopwords]
         overlap_count = sum(1 for token in q_tokens if token in clean_answer)
@@ -290,6 +302,19 @@ Return ONLY a JSON object with this exact schema:
 
         ideal_ref = matching_q.get("ideal_answer") if matching_q else f"A structured response covering the core principles, architecture, and practical trade-offs of {question}."
         expected_points = matching_q.get("expected_key_points", [f"Core fundamentals of {category}", "Real-world trade-offs"]) if matching_q else []
+
+        # Extract concept tokens from ideal reference and expected key points
+        concept_tokens = []
+        if matching_q:
+            combined_ref = (matching_q.get("ideal_answer") or "") + " " + " ".join(matching_q.get("expected_key_points") or [])
+            concept_tokens = list(set([
+                w.strip("?,.:;\"'()").lower()
+                for w in combined_ref.split()
+                if len(w) > 3 and w.lower() not in stopwords and w.lower() not in q_tokens
+            ]))
+
+        concept_overlap = sum(1 for token in concept_tokens if token in clean_answer) if concept_tokens else overlap_count
+        concept_ratio = (concept_overlap / max(1, len(concept_tokens))) if concept_tokens else overlap_ratio
 
         # Case A: Evasive / Empty / Extremely brief (< 6 words)
         if is_evasive or word_count < 6:
@@ -317,42 +342,42 @@ Return ONLY a JSON object with this exact schema:
                 ]
             }
 
-        # Case B: Off-topic / Low concept overlap (< 10% keyword match)
-        if overlap_count == 0 and word_count > 10 and category not in ["HR", "Behavioral"]:
+        # Case B: Factually incorrect, off-topic, or low concept accuracy (< 20% domain concept match or short weak answer)
+        if category not in ["HR", "Behavioral"] and (concept_ratio < 0.20 or overlap_count == 0 or (word_count < 30 and concept_ratio < 0.30)):
             return {
                 "is_correct": False,
-                "accuracy_level": "Irrelevant",
-                "technical_score": 2.5,
-                "communication_score": 4.0,
+                "accuracy_level": "Incorrect",
+                "technical_score": 2.2,
+                "communication_score": 3.8,
                 "confidence_score": 3.0,
-                "clarity_score": 3.5,
-                "overall_score": 3.0,
-                "feedback_summary": "The response did not directly address the question or core technical concepts asked.",
-                "strengths": ["Communicated in full sentences with grammatical structure."],
+                "clarity_score": 3.2,
+                "overall_score": 2.8,
+                "feedback_summary": "The answer contains significant conceptual inaccuracies or fails to demonstrate required technical knowledge.",
+                "strengths": ["Communicated in full sentences."],
                 "weaknesses": [
-                    "Response is off-topic and fails to discuss the specific topic requested.",
-                    "Missing expected technical vocabulary and direct solution."
+                    "The response contains factual errors or misses the foundational mechanisms of the topic.",
+                    f"Failed to address critical concepts: {', '.join(expected_points[:3]) if expected_points else 'core mechanisms'}."
                 ],
                 "corrections_and_misconceptions": [
-                    f"Ensure you address the specific question: '{question}'."
+                    f"The candidate's explanation does not reflect correct domain knowledge for '{question}'. Review the model answer below for the verified engineering explanation."
                 ],
                 "ideal_answer": ideal_ref,
                 "suggestions": [
-                    "Pause for 5-10 seconds before speaking to structure your answer around the interviewer's exact question.",
-                    "Lead with a direct one-sentence definition before expanding into details."
+                    "Pause before answering to verify foundational definitions rather than guessing.",
+                    "Focus on the actual mechanisms, data structures, and architectural trade-offs."
                 ]
             }
 
         # Case C: Partially correct (some overlap, moderate depth)
-        if overlap_ratio < 0.35 or word_count < 25:
+        if concept_ratio < 0.35 or word_count < 35:
             return {
                 "is_correct": False,
                 "accuracy_level": "Partially Correct",
-                "technical_score": 5.2,
-                "communication_score": 6.0,
-                "confidence_score": 5.5,
-                "clarity_score": 6.0,
-                "overall_score": 5.7,
+                "technical_score": 4.5,
+                "communication_score": 5.5,
+                "confidence_score": 5.0,
+                "clarity_score": 5.2,
+                "overall_score": 4.8,
                 "feedback_summary": "The answer touched upon some relevant keywords but lacked technical depth and thoroughness.",
                 "strengths": [
                     "Identified some relevant concepts related to the question.",
